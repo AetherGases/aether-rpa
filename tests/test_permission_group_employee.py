@@ -74,3 +74,26 @@ def test_extract_from_b_empty_rows() -> None:
     connection, _cursor = fake_connection(COLUMNS_B, [])
 
     assert extract_from_b(connection) == TableB(registers=[])
+
+
+from permission_group_employee.transformer import transform_to_a, transform_to_b
+
+
+def test_transform_to_b_remaps_employee_and_group_ids() -> None:
+    table = TableA(registers=[RegisterA(employee_id=1, permission_group_id=2)])
+    result = transform_to_b(table)
+    assert result == TableB(registers=[RegisterB(id_employee=1, id_permission_group=2)])
+
+
+def test_transform_to_a_remaps_employee_and_group_ids() -> None:
+    table = TableB(registers=[RegisterB(id_employee=1, id_permission_group=2)])
+    result = transform_to_a(table)
+    assert result == TableA(registers=[RegisterA(employee_id=1, permission_group_id=2)])
+
+
+def test_transform_to_b_empty_registers() -> None:
+    assert transform_to_b(TableA(registers=[])) == TableB(registers=[])
+
+
+def test_transform_to_a_empty_registers() -> None:
+    assert transform_to_a(TableB(registers=[])) == TableA(registers=[])

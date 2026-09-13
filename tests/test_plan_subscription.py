@@ -136,3 +136,74 @@ def test_extract_from_b_empty_rows() -> None:
     connection, _cursor = fake_connection(COLUMNS_B, [])
 
     assert extract_from_b(connection) == TableB(registers=[])
+
+
+from plan_subscription.transformer import transform_to_a, transform_to_b
+
+
+def test_transform_to_b_remaps_plan_and_company_ids() -> None:
+    table = TableA(
+        registers=[
+            RegisterA(
+                id=1,
+                is_active=True,
+                installments=12,
+                created_at=CREATED_AT,
+                deactivated_at=None,
+                plan_id=9,
+                company_id=3,
+            )
+        ]
+    )
+    result = transform_to_b(table)
+    assert result == TableB(
+        registers=[
+            RegisterB(
+                id=1,
+                is_active=True,
+                installments=12,
+                created_at=CREATED_AT,
+                deactivated_at=None,
+                id_plan=9,
+                id_enterprise=3,
+            )
+        ]
+    )
+
+
+def test_transform_to_a_remaps_plan_and_enterprise_ids() -> None:
+    table = TableB(
+        registers=[
+            RegisterB(
+                id=1,
+                is_active=True,
+                installments=12,
+                created_at=CREATED_AT,
+                deactivated_at=None,
+                id_plan=9,
+                id_enterprise=3,
+            )
+        ]
+    )
+    result = transform_to_a(table)
+    assert result == TableA(
+        registers=[
+            RegisterA(
+                id=1,
+                is_active=True,
+                installments=12,
+                created_at=CREATED_AT,
+                deactivated_at=None,
+                plan_id=9,
+                company_id=3,
+            )
+        ]
+    )
+
+
+def test_transform_to_b_empty_registers() -> None:
+    assert transform_to_b(TableA(registers=[])) == TableB(registers=[])
+
+
+def test_transform_to_a_empty_registers() -> None:
+    assert transform_to_a(TableB(registers=[])) == TableA(registers=[])

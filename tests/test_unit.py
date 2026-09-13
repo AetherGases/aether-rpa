@@ -3,6 +3,7 @@ from datetime import datetime
 from unit import RegisterA, RegisterB, TableA, TableB
 from tests.fake_db import fake_connection
 from unit.extractor import extract_from_a, extract_from_b
+from unit.transformer import transform_to_a, transform_to_b
 
 CREATED_AT = datetime(2026, 9, 12, 14, 0, 0)
 
@@ -142,3 +143,75 @@ def test_extract_from_b_empty_rows() -> None:
     connection, _cursor = fake_connection(COLUMNS_B, [])
 
     assert extract_from_b(connection) == TableB(registers=[])
+
+
+def test_transform_to_b_remaps_company_and_address_ids() -> None:
+    table = TableA(
+        registers=[
+            RegisterA(
+                id=1,
+                cnae=None,
+                cnpj="12345678901234",
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+                company_id=3,
+                address_id=10,
+            )
+        ]
+    )
+    result = transform_to_b(table)
+    assert result == TableB(
+        registers=[
+            RegisterB(
+                id=1,
+                cnae=None,
+                cnpj="12345678901234",
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+                id_enterprise=3,
+                id_address=10,
+            )
+        ]
+    )
+
+
+def test_transform_to_a_remaps_enterprise_and_address_ids() -> None:
+    table = TableB(
+        registers=[
+            RegisterB(
+                id=1,
+                cnae=None,
+                cnpj="12345678901234",
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+                id_enterprise=3,
+                id_address=10,
+            )
+        ]
+    )
+    result = transform_to_a(table)
+    assert result == TableA(
+        registers=[
+            RegisterA(
+                id=1,
+                cnae=None,
+                cnpj="12345678901234",
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+                company_id=3,
+                address_id=10,
+            )
+        ]
+    )
+
+
+def test_transform_to_b_empty_registers() -> None:
+    assert transform_to_b(TableA(registers=[])) == TableB(registers=[])
+
+
+def test_transform_to_a_empty_registers() -> None:
+    assert transform_to_a(TableB(registers=[])) == TableA(registers=[])
