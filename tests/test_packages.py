@@ -22,11 +22,14 @@ TABLE_PACKAGES = [
 def test_package_exports_register_and_table(package: str) -> None:
     module = importlib.import_module(package)
 
-    assert module.Register is not None
-    assert module.Table is not None
-    assert module.__all__ == ["Register", "Table"] or (
-        package == "employee" and module.__all__ == ["EmployeeStatus", "Register", "Table"]
-    )
+    assert module.RegisterA is not None
+    assert module.TableA is not None
+    assert module.RegisterB is not None
+    assert module.TableB is not None
+    expected = ["RegisterA", "TableA", "RegisterB", "TableB"]
+    if package == "employee":
+        expected = ["EmployeeStatus", *expected]
+    assert module.__all__ == expected
 
 
 @pytest.mark.parametrize("package", TABLE_PACKAGES)

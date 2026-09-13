@@ -1,2 +1,2 @@
-Pacotes na raiz = tabelas do banco B. definition.py: Register (todas as colunas, nullable sem default) e Table(registers) sem validação.
-EmployeeStatus vive só em employee/definition.py. extractor/transformer/driver começam vazios.
+Pacotes na raiz = tabelas do banco B. definition.py: RegisterA/TableA (colunas do A) e RegisterB/TableB (colunas do B), nullable sem default, sem validação.
+EmployeeStatus vive só em employee/definition.py. extractor: extract_from_a → TableA, extract_from_b → TableB; fetch comum em shared.extract(connection, query, register_cls, table_cls); employee converte EmployeeStatus depois. transformer/driver ainda vazios.
