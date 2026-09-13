@@ -3,21 +3,7 @@ from datetime import datetime
 
 
 @dataclass
-class RegisterA:
-    id: int
-    created_at: datetime
-    updated_at: datetime | None
-    permission_id: int | None
-    permission_group_id: int | None
-
-
-@dataclass
-class TableA:
-    registers: list[RegisterA]
-
-
-@dataclass
-class RegisterB:
+class Register:
     id: int
     created_at: datetime
     updated_at: datetime | None
@@ -26,5 +12,5 @@ class RegisterB:
 
 
 @dataclass
-class TableB:
-    registers: list[RegisterB]
+class Table:
+    registers: list[Register]
