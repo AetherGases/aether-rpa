@@ -3,7 +3,23 @@ from datetime import datetime
 
 
 @dataclass
-class Register:
+class RegisterA:
+    id: int
+    is_active: bool
+    installments: int
+    created_at: datetime
+    deactivated_at: datetime | None
+    plan_id: int | None
+    company_id: int | None
+
+
+@dataclass
+class TableA:
+    registers: list[RegisterA]
+
+
+@dataclass
+class RegisterB:
     id: int
     is_active: bool
     installments: int
@@ -14,5 +30,5 @@ class Register:
 
 
 @dataclass
-class Table:
-    registers: list[Register]
+class TableB:
+    registers: list[RegisterB]
