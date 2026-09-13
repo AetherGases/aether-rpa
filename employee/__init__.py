@@ -1,3 +1,3 @@
-from .definition import EmployeeStatus, Register, Table
+from .definition import EmployeeStatus, RegisterA, RegisterB, TableA, TableB
 
-__all__ = ["EmployeeStatus", "Register", "Table"]
+__all__ = ["EmployeeStatus", "RegisterA", "TableA", "RegisterB", "TableB"]

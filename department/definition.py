@@ -3,7 +3,22 @@ from datetime import datetime
 
 
 @dataclass
-class Register:
+class RegisterA:
+    id: int
+    name: str
+    description: str | None
+    created_at: datetime
+    updated_at: datetime | None
+    unit_id: int | None
+
+
+@dataclass
+class TableA:
+    registers: list[RegisterA]
+
+
+@dataclass
+class RegisterB:
     id: int
     name: str
     description: str | None
@@ -13,5 +28,5 @@ class Register:
 
 
 @dataclass
-class Table:
-    registers: list[Register]
+class TableB:
+    registers: list[RegisterB]
