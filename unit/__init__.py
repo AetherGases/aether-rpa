@@ -1,3 +1,3 @@
-from .definition import RegisterA, RegisterB, TableA, TableB
+from .definition import Register, Table
 
-__all__ = ["RegisterA", "TableA", "RegisterB", "TableB"]
+__all__ = ["Register", "Table"]

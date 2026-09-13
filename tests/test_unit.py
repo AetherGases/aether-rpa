@@ -1,24 +1,21 @@
 from datetime import datetime
 
-from unit import RegisterA, RegisterB, TableA, TableB
-from tests.fake_db import fake_connection
-from unit.extractor import extract_from_a, extract_from_b
-
-CREATED_AT = datetime(2026, 9, 12, 14, 0, 0)
+from unit import Register, Table
 
 
-def test_register_b_and_table_b_hold_unit_fields() -> None:
-    register = RegisterB(
+def test_register_and_table_hold_unit_fields() -> None:
+    created_at = datetime(2026, 9, 12, 14, 0, 0)
+    register = Register(
         id=1,
         cnae=None,
         cnpj="12345678901234",
         is_active=True,
-        created_at=CREATED_AT,
+        created_at=created_at,
         updated_at=None,
         id_enterprise=None,
         id_address=None,
     )
-    table = TableB(registers=[register])
+    table = Table(registers=[register])
 
     assert table.registers == [register]
     assert register.is_active is True
@@ -26,119 +23,7 @@ def test_register_b_and_table_b_hold_unit_fields() -> None:
     assert register.id_enterprise is None
 
 
-def test_register_a_and_table_a_hold_unit_fields() -> None:
-    register = RegisterA(
-        id=1,
-        cnae=None,
-        cnpj="12345678901234",
-        is_active=True,
-        created_at=CREATED_AT,
-        updated_at=None,
-        company_id=None,
-        address_id=None,
-    )
-    table = TableA(registers=[register])
-
-    assert table.registers == [register]
-    assert register.company_id is None
-    assert register.address_id is None
-    assert not hasattr(register, "id_enterprise")
-
-
-def test_table_b_accepts_empty_registers() -> None:
-    table = TableB(registers=[])
+def test_table_accepts_empty_registers() -> None:
+    table = Table(registers=[])
 
     assert table.registers == []
-
-
-def test_table_a_accepts_empty_registers() -> None:
-    table = TableA(registers=[])
-
-    assert table.registers == []
-
-
-COLUMNS_A = [
-    "id",
-    "cnae",
-    "cnpj",
-    "is_active",
-    "created_at",
-    "updated_at",
-    "company_id",
-    "address_id",
-]
-COLUMNS_B = [
-    "id",
-    "cnae",
-    "cnpj",
-    "is_active",
-    "created_at",
-    "updated_at",
-    "id_enterprise",
-    "id_address",
-]
-SELECT_A = (
-    "SELECT id, cnae, cnpj, is_active, created_at, updated_at, company_id, "
-    "address_id FROM units"
-)
-SELECT_B = (
-    "SELECT id, cnae, cnpj, is_active, created_at, updated_at, id_enterprise, "
-    "id_address FROM unit"
-)
-ROW = (1, None, "12345678901234", True, CREATED_AT, None, 2, 3)
-
-
-def test_extract_from_a_fills_register_a() -> None:
-    connection, cursor = fake_connection(COLUMNS_A, [ROW])
-
-    table = extract_from_a(connection)
-
-    cursor.execute.assert_called_once_with(SELECT_A)
-    assert table == TableA(
-        registers=[
-            RegisterA(
-                id=1,
-                cnae=None,
-                cnpj="12345678901234",
-                is_active=True,
-                created_at=CREATED_AT,
-                updated_at=None,
-                company_id=2,
-                address_id=3,
-            )
-        ]
-    )
-
-
-def test_extract_from_b_fills_register_b() -> None:
-    connection, cursor = fake_connection(COLUMNS_B, [ROW])
-
-    table = extract_from_b(connection)
-
-    cursor.execute.assert_called_once_with(SELECT_B)
-    assert table == TableB(
-        registers=[
-            RegisterB(
-                id=1,
-                cnae=None,
-                cnpj="12345678901234",
-                is_active=True,
-                created_at=CREATED_AT,
-                updated_at=None,
-                id_enterprise=2,
-                id_address=3,
-            )
-        ]
-    )
-
-
-def test_extract_from_a_empty_rows() -> None:
-    connection, _cursor = fake_connection(COLUMNS_A, [])
-
-    assert extract_from_a(connection) == TableA(registers=[])
-
-
-def test_extract_from_b_empty_rows() -> None:
-    connection, _cursor = fake_connection(COLUMNS_B, [])
-
-    assert extract_from_b(connection) == TableB(registers=[])
