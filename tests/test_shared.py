@@ -3,7 +3,7 @@ from enum import Enum
 
 import pytest
 
-from shared.driver import drive
+from shared.driver import delete_rows, drive
 from shared.extractor import extract
 from shared.transformer import transform
 from tests.fake_db import fake_connection
@@ -169,7 +169,7 @@ def test_drive_rejects_unknown_operation() -> None:
     table = _DriveTable(registers=[_DriveRegister(id=1, name="alpha")])
 
     with pytest.raises(ValueError):
-        drive(connection, table, "delete", "items", ("id",))
+        drive(connection, table, "merge", "items", ("id",))
 
 
 def test_drive_update_with_only_pk_fields_does_not_execute() -> None:
@@ -181,3 +181,47 @@ def test_drive_update_with_only_pk_fields_does_not_execute() -> None:
     drive(connection, table, "update", "permission_group_employees", ("employee_id", "permission_group_id"))
 
     cursor.executemany.assert_not_called()
+
+
+def test_drive_delete_uses_pk_where() -> None:
+    connection, cursor = fake_connection(["id", "name"], [])
+    table = _DriveTable(registers=[_DriveRegister(id=1, name="alpha")])
+    drive(connection, table, "delete", "items", ("id",))
+    cursor.executemany.assert_called_once_with(
+        "DELETE FROM items WHERE id = %s",
+        [(1,)],
+    )
+
+
+def test_drive_delete_composite_pk() -> None:
+    connection, cursor = fake_connection(["employee_id", "permission_group_id"], [])
+    table = _PkOnlyTable(
+        registers=[_PkOnlyRegister(employee_id=1, permission_group_id=2)]
+    )
+    drive(
+        connection,
+        table,
+        "delete",
+        "permission_group_employees",
+        ("employee_id", "permission_group_id"),
+    )
+    cursor.executemany.assert_called_once_with(
+        "DELETE FROM permission_group_employees WHERE employee_id = %s AND permission_group_id = %s",
+        [(1, 2)],
+    )
+
+
+def test_delete_rows_executemany() -> None:
+    connection, cursor = fake_connection([], [])
+    delete_rows(connection, "address", ("id",), [(1,), (2,)])
+    cursor.executemany.assert_called_once_with(
+        "DELETE FROM address WHERE id = %s",
+        [(1,), (2,)],
+    )
+
+
+def test_delete_rows_empty_does_not_execute() -> None:
+    connection, cursor = fake_connection([], [])
+    delete_rows(connection, "address", ("id",), [])
+    cursor.executemany.assert_not_called()
+    connection.cursor.assert_not_called()

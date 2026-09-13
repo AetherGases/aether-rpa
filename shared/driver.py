@@ -3,13 +3,20 @@ from enum import Enum
 
 
 def drive(connection, table, operation, table_name, pk_fields):
-    if operation not in ("insert", "update"):
+    if operation not in ("insert", "update", "delete"):
         raise ValueError(operation)
     registers = table.registers
     if not registers:
         return
     columns = [field.name for field in fields(registers[0])]
     pk = list(pk_fields)
+    if operation == "delete":
+        pk_values = [
+            tuple(_bind(getattr(register, column)) for column in pk)
+            for register in registers
+        ]
+        delete_rows(connection, table_name, pk, pk_values)
+        return
     if operation == "update":
         set_columns = [column for column in columns if column not in pk]
         if not set_columns:
@@ -29,6 +36,16 @@ def drive(connection, table, operation, table_name, pk_fields):
     ]
     cursor = connection.cursor()
     cursor.executemany(query, rows)
+
+
+def delete_rows(connection, table_name, pk_fields, pk_values):
+    if not pk_values:
+        return
+    pk = list(pk_fields)
+    where_sql = " AND ".join(f"{column} = %s" for column in pk)
+    query = f"DELETE FROM {table_name} WHERE {where_sql}"
+    cursor = connection.cursor()
+    cursor.executemany(query, list(pk_values))
 
 
 def _bind(value):
