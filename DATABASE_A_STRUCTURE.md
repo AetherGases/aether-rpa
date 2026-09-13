@@ -164,6 +164,21 @@
 | `plan_id`        | `INTEGER`   | FK → `plans.id`, ON DELETE CASCADE  |
 | `company_id`     | `INTEGER`   | FK → `companies.id`                 |
 
+# RPA
+
+## `rpa_outbox`
+
+| Campo          | Tipo           | Restrições                  |
+| -------------- | -------------- | --------------------------- |
+| `id`           | `SERIAL`       | PK                          |
+| `table_name`   | `VARCHAR(150)` | NOT NULL                    |
+| `operation`    | `VARCHAR(10)`  | NOT NULL                    |
+| `row_pk`       | `JSONB`        | (preenchido só em DELETE)   |
+| `created_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| `processed_at` | `TIMESTAMP`    |                             |
+
+`cmd/worker/prepare.py` cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Só banco A.
+
 # Relacionamentos
 
 | Origem                                             | Destino                   | Comportamento      |
