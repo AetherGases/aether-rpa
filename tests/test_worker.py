@@ -1,4 +1,6 @@
-from cmd.worker.prepare import SOURCE_TABLES, prepare
+from unittest.mock import MagicMock
+
+from src.worker import SOURCE_TABLES, connect_a, connect_b, main, prepare, run
 from tests.fake_db import fake_connection
 
 
@@ -45,11 +47,6 @@ def test_prepare_is_safe_to_run_twice() -> None:
     assert cursor.execute.call_count == first * 2
 
 
-from unittest.mock import MagicMock
-
-from cmd.worker.main import main, run
-
-
 def test_run_injects_connections_into_prepare_and_listen() -> None:
     connection_a = MagicMock()
     connection_b = MagicMock()
@@ -89,8 +86,6 @@ def test_main_creates_connections_and_injects_them() -> None:
 def test_connect_a_and_connect_b_use_env_urls(monkeypatch) -> None:
     import sys
 
-    from cmd.worker.main import connect_a, connect_b
-
     fake = MagicMock()
     fake.connect.side_effect = ["conn-a", "conn-b"]
     monkeypatch.setitem(sys.modules, "psycopg2", fake)
@@ -101,10 +96,3 @@ def test_connect_a_and_connect_b_use_env_urls(monkeypatch) -> None:
     assert connect_b() == "conn-b"
     fake.connect.assert_any_call("postgresql://a")
     fake.connect.assert_any_call("postgresql://b")
-
-
-def test_cmd_package_exposes_stdlib_cmd_attrs() -> None:
-    import cmd as cmd_pkg
-
-    assert cmd_pkg.Cmd is not None
-    assert cmd_pkg.IDENTCHARS == cmd_pkg.Cmd.identchars

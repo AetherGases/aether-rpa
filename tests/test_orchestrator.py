@@ -1,34 +1,36 @@
-from orchestrator.registry import TABLE_DEST, TABLE_DRIVERS, TABLE_ORDER
+from src.definition import TABLES
+from src.orchestrator import (
+    CHANNEL,
+    FETCH_PENDING,
+    LISTEN_SQL,
+    MARK_PROCESSED,
+    TABLE_DEST,
+    TABLE_DRIVERS,
+    TABLE_ORDER,
+    drain,
+    fetch_pending,
+    listen_once,
+    mark_processed,
+)
+from tests.fake_db import fake_connection
 
 
 def test_table_drivers_maps_all_database_a_tables() -> None:
-    from address.driver import drive_to_b as address_to_b
-    from department.driver import drive_to_b as department_to_b
-    from employee.driver import drive_to_b as employee_to_b
-    from enterprise.driver import drive_to_b as enterprise_to_b
-    from permission.driver import drive_to_b as permission_to_b
-    from permission_group.driver import drive_to_b as permission_group_to_b
-    from permission_group_employee.driver import drive_to_b as pge_to_b
-    from permission_group_permission.driver import drive_to_b as pgp_to_b
-    from plan.driver import drive_to_b as plan_to_b
-    from plan_subscription.driver import drive_to_b as plan_subscription_to_b
-    from storage_file.driver import drive_to_b as storage_file_to_b
-    from unit.driver import drive_to_b as unit_to_b
+    assert set(TABLE_DRIVERS) == set(TABLE_ORDER) == set(TABLES)
 
-    assert TABLE_DRIVERS == {
-        "addresses": address_to_b,
-        "companies": enterprise_to_b,
-        "units": unit_to_b,
-        "sectors": department_to_b,
-        "storage_files": storage_file_to_b,
-        "permission_groups": permission_group_to_b,
-        "permissions": permission_to_b,
-        "permission_group_permissions": pgp_to_b,
-        "employees": employee_to_b,
-        "permission_group_employees": pge_to_b,
-        "plans": plan_to_b,
-        "subscriptions": plan_subscription_to_b,
-    }
+
+def test_table_drivers_wrap_drive_to_b_with_table_key(monkeypatch) -> None:
+    calls = []
+    monkeypatch.setattr(
+        "src.orchestrator.drive_to_b",
+        lambda a, b, op, k, row_pks=None: calls.append((a, b, op, k, row_pks)),
+    )
+    connection_a = object()
+    connection_b = object()
+
+    TABLE_DRIVERS["companies"](connection_a, connection_b, "insert")
+
+    assert calls == [(connection_a, connection_b, "insert", "companies", None)]
 
 
 def test_table_order_lists_parents_before_children() -> None:
@@ -61,10 +63,6 @@ def test_table_dest_maps_b_names_and_pks() -> None:
         ("id",),
         ("id",),
     )
-
-
-from orchestrator.outbox import FETCH_PENDING, MARK_PROCESSED, drain, fetch_pending, mark_processed
-from tests.fake_db import fake_connection
 
 
 def test_fetch_pending_includes_row_pk() -> None:
@@ -102,17 +100,17 @@ def test_drain_insert_update_last_operation_wins(monkeypatch) -> None:
     connection_b, _cursor_b = fake_connection([], [])
     calls = []
     monkeypatch.setattr(
-        "orchestrator.outbox.TABLE_DRIVERS",
+        "src.orchestrator.TABLE_DRIVERS",
         {
             "addresses": lambda a, b, op: calls.append(("addresses", op)),
             "companies": lambda a, b, op: calls.append(("companies", op)),
         },
     )
     monkeypatch.setattr(
-        "orchestrator.outbox.TABLE_ORDER",
+        "src.orchestrator.TABLE_ORDER",
         ["addresses", "companies"],
     )
-    monkeypatch.setattr("orchestrator.outbox.TABLE_DEST", {})
+    monkeypatch.setattr("src.orchestrator.TABLE_DEST", {})
 
     drain(connection_a, connection_b)
 
@@ -132,38 +130,32 @@ def test_drain_delete_maps_pk_and_deletes_on_b(monkeypatch) -> None:
         ],
     )
     connection_b, _cursor_b = fake_connection([], [])
-    deleted = []
+    calls = []
     monkeypatch.setattr(
-        "orchestrator.outbox.delete_rows",
-        lambda conn, table, pk, values: deleted.append((conn, table, pk, values)),
-    )
-    monkeypatch.setattr("orchestrator.outbox.TABLE_DRIVERS", {})
-    monkeypatch.setattr(
-        "orchestrator.outbox.TABLE_ORDER",
-        ["companies", "permission_group_employees"],
-    )
-    monkeypatch.setattr(
-        "orchestrator.outbox.TABLE_DEST",
+        "src.orchestrator.TABLE_DRIVERS",
         {
-            "companies": ("enterprise", ("id",), ("id",)),
-            "permission_group_employees": (
-                "permission_group_employee",
-                ("employee_id", "permission_group_id"),
-                ("id_employee", "id_permission_group"),
+            "companies": lambda a, b, op, row_pks=None: calls.append(
+                (op, "companies", row_pks)
+            ),
+            "permission_group_employees": lambda a, b, op, row_pks=None: calls.append(
+                (op, "permission_group_employees", row_pks)
             ),
         },
+    )
+    monkeypatch.setattr(
+        "src.orchestrator.TABLE_ORDER",
+        ["companies", "permission_group_employees"],
     )
 
     drain(connection_a, connection_b)
 
-    assert deleted == [
+    assert calls == [
         (
-            connection_b,
-            "permission_group_employee",
-            ("id_employee", "id_permission_group"),
-            [(1, 2)],
+            "delete",
+            "permission_group_employees",
+            [{"employee_id": 1, "permission_group_id": 2}],
         ),
-        (connection_b, "enterprise", ("id",), [(9,)]),
+        ("delete", "companies", [{"id": 9}]),
     ]
     assert cursor_a.execute.call_args_list[-1].args == (MARK_PROCESSED, ([1, 2],))
 
@@ -174,9 +166,9 @@ def test_drain_skips_unknown_table_but_marks_processed(monkeypatch) -> None:
         [(1, "not_a_table", "insert", None)],
     )
     connection_b, _cursor_b = fake_connection([], [])
-    monkeypatch.setattr("orchestrator.outbox.TABLE_DRIVERS", {})
-    monkeypatch.setattr("orchestrator.outbox.TABLE_ORDER", [])
-    monkeypatch.setattr("orchestrator.outbox.TABLE_DEST", {})
+    monkeypatch.setattr("src.orchestrator.TABLE_DRIVERS", {})
+    monkeypatch.setattr("src.orchestrator.TABLE_ORDER", [])
+    monkeypatch.setattr("src.orchestrator.TABLE_DEST", {})
 
     drain(connection_a, connection_b)
 
@@ -192,16 +184,13 @@ def test_drain_empty_pending_does_not_mark() -> None:
     cursor_a.execute.assert_called_once_with(FETCH_PENDING)
 
 
-from orchestrator.listener import CHANNEL, LISTEN_SQL, listen_once
-
-
 def test_listen_once_without_notify_does_not_drain(monkeypatch) -> None:
     connection_a, cursor_a = fake_connection([], [])
     connection_a.notifies = []
     connection_b, _cursor_b = fake_connection([], [])
     drained = []
     monkeypatch.setattr(
-        "orchestrator.listener.drain",
+        "src.orchestrator.drain",
         lambda a, b: drained.append((a, b)),
     )
     listen_once(connection_a, connection_b)
@@ -216,7 +205,7 @@ def test_listen_once_with_notify_drains_and_clears(monkeypatch) -> None:
     connection_b, _cursor_b = fake_connection([], [])
     drained = []
     monkeypatch.setattr(
-        "orchestrator.listener.drain",
+        "src.orchestrator.drain",
         lambda a, b: drained.append((a, b)),
     )
     listen_once(connection_a, connection_b)
