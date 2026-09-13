@@ -3,24 +3,12 @@ from datetime import datetime
 
 
 @dataclass
-class RegisterA:
+class Register:
     id: int
     description: str
     created_at: datetime
 
 
 @dataclass
-class TableA:
-    registers: list[RegisterA]
-
-
-@dataclass
-class RegisterB:
-    id: int
-    description: str
-    created_at: datetime
-
-
-@dataclass
-class TableB:
-    registers: list[RegisterB]
+class Table:
+    registers: list[Register]
