@@ -10,27 +10,7 @@ class EmployeeStatus(Enum):
 
 
 @dataclass
-class RegisterA:
-    id: int
-    cpf: str
-    name: str
-    email: str
-    phone: str
-    password_hash: str
-    employee_status: EmployeeStatus
-    created_at: datetime
-    updated_at: datetime | None
-    storage_file_id: int | None
-    sector_id: int | None
-
-
-@dataclass
-class TableA:
-    registers: list[RegisterA]
-
-
-@dataclass
-class RegisterB:
+class Register:
     id: int
     cpf: str
     name: str
@@ -45,5 +25,5 @@ class RegisterB:
 
 
 @dataclass
-class TableB:
-    registers: list[RegisterB]
+class Table:
+    registers: list[Register]
