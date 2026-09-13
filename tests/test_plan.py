@@ -2,7 +2,9 @@ from datetime import datetime
 from decimal import Decimal
 
 from plan import RegisterA, RegisterB, TableA, TableB
+from plan.driver import drive_to_a, drive_to_b
 from plan.extractor import extract_from_a, extract_from_b
+from plan.transformer import transform_to_a, transform_to_b
 from tests.fake_db import fake_connection
 
 CREATED_AT = datetime(2026, 9, 12, 14, 0, 0)
@@ -131,3 +133,92 @@ def test_extract_from_b_empty_rows() -> None:
     connection, _cursor = fake_connection(COLUMNS, [])
 
     assert extract_from_b(connection) == TableB(registers=[])
+
+
+def test_transform_to_b_copies_plan_fields() -> None:
+    connection, _cursor = fake_connection(COLUMNS, [ROW])
+
+    result = transform_to_b(connection)
+
+    assert result == TableB(
+        registers=[
+            RegisterB(
+                id=1,
+                name="Pro",
+                description=None,
+                price=Decimal("99.90"),
+                duration_days=30,
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+            )
+        ]
+    )
+
+
+def test_transform_to_a_copies_plan_fields() -> None:
+    connection, _cursor = fake_connection(COLUMNS, [ROW])
+
+    result = transform_to_a(connection)
+
+    assert result == TableA(
+        registers=[
+            RegisterA(
+                id=1,
+                name="Pro",
+                description=None,
+                price=Decimal("99.90"),
+                duration_days=30,
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+            )
+        ]
+    )
+
+
+def test_transform_to_b_empty_registers() -> None:
+    connection, _cursor = fake_connection(COLUMNS, [])
+
+    assert transform_to_b(connection) == TableB(registers=[])
+
+
+def test_transform_to_a_empty_registers() -> None:
+    connection, _cursor = fake_connection(COLUMNS, [])
+
+    assert transform_to_a(connection) == TableA(registers=[])
+
+
+def test_drive_to_b_insert() -> None:
+    source_a, _ = fake_connection(COLUMNS, [ROW])
+    dest_b, dest_cursor = fake_connection(COLUMNS, [])
+
+    drive_to_b(source_a, dest_b, "insert")
+
+    dest_cursor.executemany.assert_called_once_with(
+        "INSERT INTO plan (id, name, description, price, duration_days, is_active, "
+        "created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        [(1, "Pro", None, Decimal("99.90"), 30, True, CREATED_AT, None)],
+    )
+
+
+def test_drive_to_a_update() -> None:
+    dest_a, dest_cursor = fake_connection(COLUMNS, [])
+    source_b, _ = fake_connection(COLUMNS, [ROW])
+
+    drive_to_a(dest_a, source_b, "update")
+
+    dest_cursor.executemany.assert_called_once_with(
+        "UPDATE plans SET name = %s, description = %s, price = %s, duration_days = %s, "
+        "is_active = %s, created_at = %s, updated_at = %s WHERE id = %s",
+        [("Pro", None, Decimal("99.90"), 30, True, CREATED_AT, None, 1)],
+    )
+
+
+def test_drive_to_b_empty_source_does_not_execute() -> None:
+    source_a, _ = fake_connection(COLUMNS, [])
+    dest_b, dest_cursor = fake_connection(COLUMNS, [])
+
+    drive_to_b(source_a, dest_b, "insert")
+
+    dest_cursor.executemany.assert_not_called()

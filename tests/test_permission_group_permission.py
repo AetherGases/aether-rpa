@@ -1,7 +1,9 @@
 from datetime import datetime
 
 from permission_group_permission import RegisterA, RegisterB, TableA, TableB
+from permission_group_permission.driver import drive_to_a, drive_to_b
 from permission_group_permission.extractor import extract_from_a, extract_from_b
+from permission_group_permission.transformer import transform_to_a, transform_to_b
 from tests.fake_db import fake_connection
 
 CREATED_AT = datetime(2026, 9, 12, 14, 0, 0)
@@ -113,64 +115,84 @@ def test_extract_from_b_empty_rows() -> None:
     assert extract_from_b(connection) == TableB(registers=[])
 
 
-from permission_group_permission.transformer import transform_to_a, transform_to_b
-
-
 def test_transform_to_b_remaps_permission_ids() -> None:
-    table = TableA(
-        registers=[
-            RegisterA(
-                id=1,
-                created_at=CREATED_AT,
-                updated_at=None,
-                permission_id=7,
-                permission_group_id=8,
-            )
-        ]
-    )
-    result = transform_to_b(table)
+    connection, _cursor = fake_connection(COLUMNS_A, [ROW])
+
+    result = transform_to_b(connection)
+
     assert result == TableB(
         registers=[
             RegisterB(
                 id=1,
                 created_at=CREATED_AT,
                 updated_at=None,
-                id_permission=7,
-                id_permission_group=8,
+                id_permission=8,
+                id_permission_group=9,
             )
         ]
     )
 
 
 def test_transform_to_a_remaps_permission_ids() -> None:
-    table = TableB(
-        registers=[
-            RegisterB(
-                id=1,
-                created_at=CREATED_AT,
-                updated_at=None,
-                id_permission=7,
-                id_permission_group=8,
-            )
-        ]
-    )
-    result = transform_to_a(table)
+    connection, _cursor = fake_connection(COLUMNS_B, [ROW])
+
+    result = transform_to_a(connection)
+
     assert result == TableA(
         registers=[
             RegisterA(
                 id=1,
                 created_at=CREATED_AT,
                 updated_at=None,
-                permission_id=7,
-                permission_group_id=8,
+                permission_id=8,
+                permission_group_id=9,
             )
         ]
     )
 
 
 def test_transform_to_b_empty_registers() -> None:
-    assert transform_to_b(TableA(registers=[])) == TableB(registers=[])
+    connection, _cursor = fake_connection(COLUMNS_A, [])
+
+    assert transform_to_b(connection) == TableB(registers=[])
 
 
 def test_transform_to_a_empty_registers() -> None:
-    assert transform_to_a(TableB(registers=[])) == TableA(registers=[])
+    connection, _cursor = fake_connection(COLUMNS_B, [])
+
+    assert transform_to_a(connection) == TableA(registers=[])
+
+
+def test_drive_to_b_insert() -> None:
+    connection_a, _cursor_a = fake_connection(COLUMNS_A, [ROW])
+    connection_b, cursor_b = fake_connection(COLUMNS_B, [])
+
+    drive_to_b(connection_a, connection_b, "insert")
+
+    cursor_b.executemany.assert_called_once_with(
+        "INSERT INTO permission_group_permission (id, created_at, updated_at, "
+        "id_permission, id_permission_group) VALUES (%s, %s, %s, %s, %s)",
+        [(1, CREATED_AT, None, 8, 9)],
+    )
+
+
+def test_drive_to_a_update() -> None:
+    connection_a, cursor_a = fake_connection(COLUMNS_A, [])
+    connection_b, _cursor_b = fake_connection(COLUMNS_B, [ROW])
+
+    drive_to_a(connection_a, connection_b, "update")
+
+    cursor_a.executemany.assert_called_once_with(
+        "UPDATE permission_group_permissions SET created_at = %s, updated_at = %s, "
+        "permission_id = %s, permission_group_id = %s WHERE id = %s",
+        [(CREATED_AT, None, 8, 9, 1)],
+    )
+
+
+def test_drive_to_b_empty_no_op() -> None:
+    connection_a, _cursor_a = fake_connection(COLUMNS_A, [])
+    connection_b, cursor_b = fake_connection(COLUMNS_B, [])
+
+    drive_to_b(connection_a, connection_b, "insert")
+
+    cursor_b.executemany.assert_not_called()

@@ -2,6 +2,7 @@ from datetime import datetime
 
 from unit import RegisterA, RegisterB, TableA, TableB
 from tests.fake_db import fake_connection
+from unit.driver import drive_to_a, drive_to_b
 from unit.extractor import extract_from_a, extract_from_b
 from unit.transformer import transform_to_a, transform_to_b
 
@@ -87,6 +88,7 @@ SELECT_B = (
     "id_address FROM unit"
 )
 ROW = (1, None, "12345678901234", True, CREATED_AT, None, 2, 3)
+ROW_REMAP = (1, None, "12345678901234", True, CREATED_AT, None, 3, 10)
 
 
 def test_extract_from_a_fills_register_a() -> None:
@@ -146,21 +148,10 @@ def test_extract_from_b_empty_rows() -> None:
 
 
 def test_transform_to_b_remaps_company_and_address_ids() -> None:
-    table = TableA(
-        registers=[
-            RegisterA(
-                id=1,
-                cnae=None,
-                cnpj="12345678901234",
-                is_active=True,
-                created_at=CREATED_AT,
-                updated_at=None,
-                company_id=3,
-                address_id=10,
-            )
-        ]
-    )
-    result = transform_to_b(table)
+    connection, _cursor = fake_connection(COLUMNS_A, [ROW_REMAP])
+
+    result = transform_to_b(connection)
+
     assert result == TableB(
         registers=[
             RegisterB(
@@ -178,21 +169,10 @@ def test_transform_to_b_remaps_company_and_address_ids() -> None:
 
 
 def test_transform_to_a_remaps_enterprise_and_address_ids() -> None:
-    table = TableB(
-        registers=[
-            RegisterB(
-                id=1,
-                cnae=None,
-                cnpj="12345678901234",
-                is_active=True,
-                created_at=CREATED_AT,
-                updated_at=None,
-                id_enterprise=3,
-                id_address=10,
-            )
-        ]
-    )
-    result = transform_to_a(table)
+    connection, _cursor = fake_connection(COLUMNS_B, [ROW_REMAP])
+
+    result = transform_to_a(connection)
+
     assert result == TableA(
         registers=[
             RegisterA(
@@ -210,8 +190,48 @@ def test_transform_to_a_remaps_enterprise_and_address_ids() -> None:
 
 
 def test_transform_to_b_empty_registers() -> None:
-    assert transform_to_b(TableA(registers=[])) == TableB(registers=[])
+    connection, _cursor = fake_connection(COLUMNS_A, [])
+
+    assert transform_to_b(connection) == TableB(registers=[])
 
 
 def test_transform_to_a_empty_registers() -> None:
-    assert transform_to_a(TableB(registers=[])) == TableA(registers=[])
+    connection, _cursor = fake_connection(COLUMNS_B, [])
+
+    assert transform_to_a(connection) == TableA(registers=[])
+
+
+def test_drive_to_b_insert() -> None:
+    connection_a, _cursor_a = fake_connection(COLUMNS_A, [ROW])
+    connection_b, cursor_b = fake_connection(COLUMNS_B, [])
+
+    drive_to_b(connection_a, connection_b, "insert")
+
+    cursor_b.executemany.assert_called_once_with(
+        "INSERT INTO unit (id, cnae, cnpj, is_active, created_at, updated_at, "
+        "id_enterprise, id_address) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+        [(1, None, "12345678901234", True, CREATED_AT, None, 2, 3)],
+    )
+
+
+def test_drive_to_a_update() -> None:
+    connection_a, cursor_a = fake_connection(COLUMNS_A, [])
+    connection_b, _cursor_b = fake_connection(COLUMNS_B, [ROW])
+
+    drive_to_a(connection_a, connection_b, "update")
+
+    cursor_a.executemany.assert_called_once_with(
+        "UPDATE units SET cnae = %s, cnpj = %s, is_active = %s, created_at = %s, "
+        "updated_at = %s, company_id = %s, address_id = %s WHERE id = %s",
+        [(None, "12345678901234", True, CREATED_AT, None, 2, 3, 1)],
+    )
+
+
+def test_drive_to_b_empty_no_op() -> None:
+    connection_a, _cursor_a = fake_connection(COLUMNS_A, [])
+    connection_b, cursor_b = fake_connection(COLUMNS_B, [])
+
+    drive_to_b(connection_a, connection_b, "insert")
+
+    cursor_b.executemany.assert_not_called()
+    connection_b.cursor.assert_not_called()

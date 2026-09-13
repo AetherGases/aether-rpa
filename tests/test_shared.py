@@ -1,5 +1,9 @@
 from dataclasses import dataclass
+from enum import Enum
 
+import pytest
+
+from shared.driver import drive
 from shared.extractor import extract
 from shared.transformer import transform
 from tests.fake_db import fake_connection
@@ -84,3 +88,96 @@ def test_transform_applies_inverse_field_map() -> None:
     result = transform(table, _RegisterA, _TableA, inverse)
 
     assert result == _TableA(registers=[_RegisterA(id=1, name="alpha", address_id=10)])
+
+
+class _Status(Enum):
+    ACTIVE = "ACTIVE"
+
+
+@dataclass
+class _DriveRegister:
+    id: int
+    name: str
+    status: _Status | None = None
+
+
+@dataclass
+class _DriveTable:
+    registers: list[_DriveRegister]
+
+
+@dataclass
+class _PkOnlyRegister:
+    employee_id: int
+    permission_group_id: int
+
+
+@dataclass
+class _PkOnlyTable:
+    registers: list[_PkOnlyRegister]
+
+
+def test_drive_insert_executemany_includes_pk() -> None:
+    connection, cursor = fake_connection(["id", "name"], [])
+    table = _DriveTable(registers=[_DriveRegister(id=1, name="alpha")])
+
+    drive(connection, table, "insert", "items", ("id",))
+
+    cursor.executemany.assert_called_once_with(
+        "INSERT INTO items (id, name, status) VALUES (%s, %s, %s)",
+        [(1, "alpha", None)],
+    )
+
+
+def test_drive_update_sets_non_pk_where_pk() -> None:
+    connection, cursor = fake_connection(["id", "name"], [])
+    table = _DriveTable(registers=[_DriveRegister(id=1, name="alpha")])
+
+    drive(connection, table, "update", "items", ("id",))
+
+    cursor.executemany.assert_called_once_with(
+        "UPDATE items SET name = %s, status = %s WHERE id = %s",
+        [("alpha", None, 1)],
+    )
+
+
+def test_drive_insert_converts_enum_to_value() -> None:
+    connection, cursor = fake_connection(["id", "name"], [])
+    table = _DriveTable(
+        registers=[_DriveRegister(id=1, name="alpha", status=_Status.ACTIVE)]
+    )
+
+    drive(connection, table, "insert", "items", ("id",))
+
+    cursor.executemany.assert_called_once_with(
+        "INSERT INTO items (id, name, status) VALUES (%s, %s, %s)",
+        [(1, "alpha", "ACTIVE")],
+    )
+
+
+def test_drive_empty_registers_does_not_execute() -> None:
+    connection, cursor = fake_connection(["id", "name"], [])
+
+    drive(connection, _DriveTable(registers=[]), "insert", "items", ("id",))
+
+    cursor.executemany.assert_not_called()
+    connection.cursor.assert_not_called()
+
+
+def test_drive_rejects_unknown_operation() -> None:
+    connection, _cursor = fake_connection(["id", "name"], [])
+    table = _DriveTable(registers=[_DriveRegister(id=1, name="alpha")])
+
+    with pytest.raises(ValueError):
+        drive(connection, table, "delete", "items", ("id",))
+
+
+def test_drive_update_with_only_pk_fields_does_not_execute() -> None:
+    connection, cursor = fake_connection(["employee_id", "permission_group_id"], [])
+    table = _PkOnlyTable(
+        registers=[_PkOnlyRegister(employee_id=1, permission_group_id=2)]
+    )
+
+    drive(connection, table, "update", "permission_group_employees", ("employee_id", "permission_group_id"))
+
+    cursor.executemany.assert_not_called()
