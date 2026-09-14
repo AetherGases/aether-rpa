@@ -21,8 +21,8 @@ def drive(connection, table, operation, table_name, pk_fields):
         delete_rows(connection, table_name, pk, pk_values)
         return
     columns = [field.name for field in fields(registers[0])]
+    set_columns = [column for column in columns if column not in pk]
     if operation == "update":
-        set_columns = [column for column in columns if column not in pk]
         if not set_columns:
             return
         set_sql = ", ".join(f"{column} = %s" for column in set_columns)
@@ -32,7 +32,18 @@ def drive(connection, table, operation, table_name, pk_fields):
     else:
         col_sql = ", ".join(columns)
         placeholders = ", ".join(["%s"] * len(columns))
-        query = f"INSERT INTO {table_name} ({col_sql}) VALUES ({placeholders})"
+        conflict_sql = ", ".join(pk)
+        if set_columns:
+            set_sql = ", ".join(
+                f"{column} = EXCLUDED.{column}" for column in set_columns
+            )
+            on_conflict = f"ON CONFLICT ({conflict_sql}) DO UPDATE SET {set_sql}"
+        else:
+            on_conflict = f"ON CONFLICT ({conflict_sql}) DO NOTHING"
+        query = (
+            f"INSERT INTO {table_name} ({col_sql}) VALUES ({placeholders}) "
+            f"{on_conflict}"
+        )
         bind_columns = columns
     rows = [
         tuple(_bind(getattr(register, column)) for column in bind_columns)

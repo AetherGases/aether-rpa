@@ -56,7 +56,8 @@ def test_drive_insert_executemany_includes_pk() -> None:
     drive(connection, table, "insert", "items", ("id",))
 
     cursor.executemany.assert_called_once_with(
-        "INSERT INTO items (id, name, status) VALUES (%s, %s, %s)",
+        "INSERT INTO items (id, name, status) VALUES (%s, %s, %s) "
+        "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status",
         [(1, "alpha", None)],
     )
 
@@ -82,7 +83,8 @@ def test_drive_insert_converts_enum_to_value() -> None:
     drive(connection, table, "insert", "items", ("id",))
 
     cursor.executemany.assert_called_once_with(
-        "INSERT INTO items (id, name, status) VALUES (%s, %s, %s)",
+        "INSERT INTO items (id, name, status) VALUES (%s, %s, %s) "
+        "ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, status = EXCLUDED.status",
         [(1, "alpha", "ACTIVE")],
     )
 
@@ -94,6 +96,27 @@ def test_drive_empty_registers_does_not_execute() -> None:
 
     cursor.executemany.assert_not_called()
     connection.cursor.assert_not_called()
+
+
+def test_drive_insert_pk_only_does_nothing_on_conflict() -> None:
+    connection, cursor = fake_connection(["employee_id", "permission_group_id"], [])
+    table = _PkOnlyTable(
+        registers=[_PkOnlyRegister(employee_id=1, permission_group_id=2)]
+    )
+
+    drive(
+        connection,
+        table,
+        "insert",
+        "permission_group_employees",
+        ("employee_id", "permission_group_id"),
+    )
+
+    cursor.executemany.assert_called_once_with(
+        "INSERT INTO permission_group_employees (employee_id, permission_group_id) "
+        "VALUES (%s, %s) ON CONFLICT (employee_id, permission_group_id) DO NOTHING",
+        [(1, 2)],
+    )
 
 
 def test_drive_rejects_unknown_operation() -> None:
@@ -213,7 +236,8 @@ def test_drive_to_b_addresses_insert() -> None:
 
     transform.assert_called_once_with(connection_a, "addresses")
     cursor_b.executemany.assert_called_once_with(
-        "INSERT INTO address (id, zip_code, state, city, neighborhood, street, number, complement, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "INSERT INTO address (id, zip_code, state, city, neighborhood, street, number, complement, created_at, updated_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "ON CONFLICT (id) DO UPDATE SET zip_code = EXCLUDED.zip_code, state = EXCLUDED.state, city = EXCLUDED.city, neighborhood = EXCLUDED.neighborhood, street = EXCLUDED.street, number = EXCLUDED.number, complement = EXCLUDED.complement, created_at = EXCLUDED.created_at, updated_at = EXCLUDED.updated_at",
         [
             (
                 1,
@@ -287,7 +311,12 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
     cursor_b.executemany.assert_called_once_with(
         "INSERT INTO employee (id, cpf, name, email, phone, password_hash, "
         "employee_status, created_at, updated_at, id_storage_file, id_department) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)",
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "ON CONFLICT (id) DO UPDATE SET cpf = EXCLUDED.cpf, name = EXCLUDED.name, "
+        "email = EXCLUDED.email, phone = EXCLUDED.phone, password_hash = EXCLUDED.password_hash, "
+        "employee_status = EXCLUDED.employee_status, created_at = EXCLUDED.created_at, "
+        "updated_at = EXCLUDED.updated_at, id_storage_file = EXCLUDED.id_storage_file, "
+        "id_department = EXCLUDED.id_department",
         [
             (
                 1,

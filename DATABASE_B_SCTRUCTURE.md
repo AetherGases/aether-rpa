@@ -192,3 +192,18 @@
 | `idx_employee_status`                                 | `employee`                    | `employee_status`       |
 | `idx_plan_subscription_id_plan`                       | `plan_subscription`           | `id_plan`               |
 | `idx_plan_subscription_id_enterprise`                 | `plan_subscription`           | `id_enterprise`         |
+
+# RPA
+
+## `rpa_outbox`
+
+| Campo          | Tipo           | Restrições                  |
+| -------------- | -------------- | --------------------------- |
+| `id`           | `SERIAL`       | PK                          |
+| `table_name`   | `VARCHAR(150)` | NOT NULL                    |
+| `operation`    | `VARCHAR(10)`  | NOT NULL                    |
+| `row_pk`       | `JSONB`        | (preenchido só em DELETE)   |
+| `created_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| `processed_at` | `TIMESTAMP`    |                             |
+
+`src/worker.py` (`prepare`) cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Triggers nas tabelas: `address`, `enterprise`, `unit`, `department`, `storage_file`, `permission_group`, `permission`, `permission_group_permission`, `employee`, `permission_group_employee`, `plan`, `plan_subscription`. Só banco B.
