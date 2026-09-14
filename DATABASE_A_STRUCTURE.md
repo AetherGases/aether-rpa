@@ -177,7 +177,7 @@
 | `created_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 | `processed_at` | `TIMESTAMP`    |                             |
 
-`cmd/worker/prepare.py` cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Só banco A.
+`src/worker.py` (`prepare`) cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Triggers nas 12 tabelas cadastrais. Só banco A. Conexões do RPA usam `application_name=aether-rpa` e os triggers ignoram esses writes.
 
 # Relacionamentos
 
