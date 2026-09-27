@@ -14,6 +14,7 @@ from src.definition import (
     EmployeeStatus,
     EmployeeTableA,
     EmployeeTableB,
+    StatusEmployeeA,
 )
 from src.extractor import extract, extract_from_a, extract_from_b
 from tests.fake_db import fake_connection
@@ -46,7 +47,19 @@ ADDRESS_COLUMNS = [
     "created_at",
     "updated_at",
 ]
-ADDRESS_ROW = (
+ADDRESS_ROW_A = (
+    1,
+    "01310100",
+    "SP",
+    "Sao Paulo",
+    "Bela Vista",
+    "Avenida Paulista",
+    "1000",
+    None,
+    CREATED_AT,
+    None,
+)
+ADDRESS_ROW_B = (
     1,
     "01310100",
     "SP",
@@ -65,7 +78,7 @@ ADDRESS_A = AddressA(
     city="Sao Paulo",
     neighborhood="Bela Vista",
     street="Avenida Paulista",
-    number=1000,
+    number="1000",
     complement=None,
     created_at=CREATED_AT,
     updated_at=None,
@@ -90,11 +103,12 @@ EMPLOYEE_COLUMNS_A = [
     "email",
     "phone",
     "password_hash",
-    "employee_status",
+    "status",
     "created_at",
     "updated_at",
     "storage_file_id",
     "sector_id",
+    "permission_group_id",
 ]
 EMPLOYEE_COLUMNS_B = [
     "id",
@@ -108,6 +122,7 @@ EMPLOYEE_COLUMNS_B = [
     "updated_at",
     "id_storage_file",
     "id_department",
+    "id_permission_group",
 ]
 EMPLOYEE_ROW_A = (
     1,
@@ -116,11 +131,12 @@ EMPLOYEE_ROW_A = (
     "ana@example.com",
     "11999999999",
     "hash",
-    "ACTIVE",
+    "active",
     CREATED_AT,
     None,
     5,
     6,
+    2,
 )
 EMPLOYEE_ROW_B = (
     1,
@@ -134,6 +150,7 @@ EMPLOYEE_ROW_B = (
     None,
     5,
     6,
+    2,
 )
 
 
@@ -154,8 +171,8 @@ def test_extract_empty_rows_returns_empty_table() -> None:
     assert table == _Table(registers=[])
 
 
-def test_extract_from_a_fills_address_register() -> None:
-    connection, cursor = fake_connection(ADDRESS_COLUMNS, [ADDRESS_ROW])
+def test_extract_from_a_fills_address_register_with_str_number() -> None:
+    connection, cursor = fake_connection(ADDRESS_COLUMNS, [ADDRESS_ROW_A])
 
     table = extract_from_a(connection, "addresses")
 
@@ -163,8 +180,8 @@ def test_extract_from_a_fills_address_register() -> None:
     assert table == AddressTableA(registers=[ADDRESS_A])
 
 
-def test_extract_from_b_fills_address_register() -> None:
-    connection, cursor = fake_connection(ADDRESS_COLUMNS, [ADDRESS_ROW])
+def test_extract_from_b_fills_address_register_with_int_number() -> None:
+    connection, cursor = fake_connection(ADDRESS_COLUMNS, [ADDRESS_ROW_B])
 
     table = extract_from_b(connection, "addresses")
 
@@ -172,7 +189,7 @@ def test_extract_from_b_fills_address_register() -> None:
     assert table == AddressTableB(registers=[ADDRESS_B])
 
 
-def test_extract_from_a_fills_employee_with_active_status() -> None:
+def test_extract_from_a_fills_employee_with_status_enum() -> None:
     connection, cursor = fake_connection(EMPLOYEE_COLUMNS_A, [EMPLOYEE_ROW_A])
 
     table = extract_from_a(connection, "employees")
@@ -187,11 +204,12 @@ def test_extract_from_a_fills_employee_with_active_status() -> None:
                 email="ana@example.com",
                 phone="11999999999",
                 password_hash="hash",
-                employee_status=EmployeeStatus.ACTIVE,
+                status=StatusEmployeeA.ACTIVE,
                 created_at=CREATED_AT,
                 updated_at=None,
                 storage_file_id=5,
                 sector_id=6,
+                permission_group_id=2,
             )
         ]
     )
@@ -217,9 +235,19 @@ def test_extract_from_b_fills_employee_with_in_vacation_status() -> None:
                 updated_at=None,
                 id_storage_file=5,
                 id_department=6,
+                id_permission_group=2,
             )
         ]
     )
+
+
+def test_extract_from_a_leaves_invalid_status_as_raw_string() -> None:
+    row = (*EMPLOYEE_ROW_A[:6], "invalid", *EMPLOYEE_ROW_A[7:])
+    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_A, [row])
+
+    table = extract_from_a(connection, "employees")
+
+    assert table.registers[0].status == "invalid"
 
 
 def test_extract_from_a_empty_rows() -> None:

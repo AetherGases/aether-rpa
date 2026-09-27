@@ -13,8 +13,6 @@ from src.definition import (
     EmployeeB,
     EmployeeStatus,
     EmployeeTableB,
-    PermissionGroupEmployeeB,
-    PermissionGroupEmployeeTableB,
 )
 from src.driver import delete_rows, drive, drive_to_a, drive_to_b
 from tests.fake_db import fake_connection
@@ -108,12 +106,12 @@ def test_drive_insert_pk_only_does_nothing_on_conflict() -> None:
         connection,
         table,
         "insert",
-        "permission_group_employees",
+        "link_table",
         ("employee_id", "permission_group_id"),
     )
 
     cursor.executemany.assert_called_once_with(
-        "INSERT INTO permission_group_employees (employee_id, permission_group_id) "
+        "INSERT INTO link_table (employee_id, permission_group_id) "
         "VALUES (%s, %s) ON CONFLICT (employee_id, permission_group_id) DO NOTHING",
         [(1, 2)],
     )
@@ -137,7 +135,7 @@ def test_drive_update_with_only_pk_fields_does_not_execute() -> None:
         connection,
         table,
         "update",
-        "permission_group_employees",
+        "link_table",
         ("employee_id", "permission_group_id"),
     )
 
@@ -166,12 +164,12 @@ def test_drive_delete_composite_pk() -> None:
         connection,
         table,
         "delete",
-        "permission_group_employees",
+        "link_table",
         ("employee_id", "permission_group_id"),
     )
 
     cursor.executemany.assert_called_once_with(
-        "DELETE FROM permission_group_employees WHERE employee_id = %s AND permission_group_id = %s",
+        "DELETE FROM link_table WHERE employee_id = %s AND permission_group_id = %s",
         [(1, 2)],
     )
 
@@ -219,7 +217,7 @@ def _address_a() -> AddressA:
         city="Sao Paulo",
         neighborhood="Bela Vista",
         street="Avenida Paulista",
-        number=1000,
+        number="1000",
         complement=None,
         created_at=CREATED_AT,
         updated_at=None,
@@ -273,7 +271,7 @@ def test_drive_to_a_addresses_update() -> None:
                 "Sao Paulo",
                 "Bela Vista",
                 "Avenida Paulista",
-                1000,
+                "1000",
                 None,
                 CREATED_AT,
                 None,
@@ -300,6 +298,7 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
                 updated_at=None,
                 id_storage_file=5,
                 id_department=6,
+                id_permission_group=2,
             )
         ]
     )
@@ -310,13 +309,14 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
     transform.assert_called_once_with(connection_a, "employees")
     cursor_b.executemany.assert_called_once_with(
         "INSERT INTO employee (id, cpf, name, email, phone, password_hash, "
-        "employee_status, created_at, updated_at, id_storage_file, id_department) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
+        "employee_status, created_at, updated_at, id_storage_file, id_department, "
+        "id_permission_group) "
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) "
         "ON CONFLICT (id) DO UPDATE SET cpf = EXCLUDED.cpf, name = EXCLUDED.name, "
         "email = EXCLUDED.email, phone = EXCLUDED.phone, password_hash = EXCLUDED.password_hash, "
         "employee_status = EXCLUDED.employee_status, created_at = EXCLUDED.created_at, "
         "updated_at = EXCLUDED.updated_at, id_storage_file = EXCLUDED.id_storage_file, "
-        "id_department = EXCLUDED.id_department",
+        "id_department = EXCLUDED.id_department, id_permission_group = EXCLUDED.id_permission_group",
         [
             (
                 1,
@@ -330,26 +330,10 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
                 None,
                 5,
                 6,
+                2,
             )
         ],
     )
-
-
-def test_drive_to_b_permission_group_employees_update_does_not_executemany() -> None:
-    connection_a, _cursor_a = fake_connection([], [])
-    connection_b, cursor_b = fake_connection([], [])
-    table = PermissionGroupEmployeeTableB(
-        registers=[
-            PermissionGroupEmployeeB(id_employee=1, id_permission_group=2)
-        ]
-    )
-
-    with patch("src.driver.transform_to_b", return_value=table) as transform:
-        drive_to_b(connection_a, connection_b, "update", "permission_group_employees")
-
-    transform.assert_called_once_with(connection_a, "permission_group_employees")
-    cursor_b.executemany.assert_not_called()
-    connection_b.cursor.assert_not_called()
 
 
 def test_drive_to_b_empty_source_does_not_executemany() -> None:
@@ -383,25 +367,6 @@ def test_drive_to_b_delete_uses_row_pks_and_skips_transform() -> None:
     cursor_b.executemany.assert_called_once_with(
         "DELETE FROM address WHERE id = %s",
         [(1,), (2,)],
-    )
-
-
-def test_drive_to_b_delete_maps_composite_pk() -> None:
-    connection_a, _cursor_a = fake_connection([], [])
-    connection_b, cursor_b = fake_connection([], [])
-
-    drive_to_b(
-        connection_a,
-        connection_b,
-        "delete",
-        "permission_group_employees",
-        row_pks=[{"employee_id": 1, "permission_group_id": 2}],
-    )
-
-    cursor_b.executemany.assert_called_once_with(
-        "DELETE FROM permission_group_employee "
-        "WHERE id_employee = %s AND id_permission_group = %s",
-        [(1, 2)],
     )
 
 

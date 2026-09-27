@@ -42,32 +42,28 @@ def test_table_order_lists_parents_before_children() -> None:
     assert TABLE_ORDER == [
         "addresses",
         "storage_files",
-        "permission_groups",
         "permissions",
         "plans",
         "companies",
+        "permission_groups",
         "units",
         "sectors",
         "permission_group_permissions",
         "employees",
-        "permission_group_employees",
         "subscriptions",
     ]
     assert set(TABLE_ORDER) == set(TABLE_DRIVERS) == set(TABLE_DEST)
+    assert len(TABLE_ORDER) == 11
 
 
 def test_table_dest_maps_b_names_and_pks() -> None:
     assert TABLE_DEST["companies"] == ("enterprise", ("id",), ("id",))
-    assert TABLE_DEST["permission_group_employees"] == (
-        "permission_group_employee",
-        ("employee_id", "permission_group_id"),
-        ("id_employee", "id_permission_group"),
-    )
     assert TABLE_DEST["subscriptions"] == (
         "plan_subscription",
         ("id",),
         ("id",),
     )
+    assert "permission_group_employees" not in TABLE_DEST
 
 
 def test_fetch_pending_includes_row_pk() -> None:
@@ -128,10 +124,7 @@ def test_drain_delete_maps_pk_and_deletes_on_b(monkeypatch) -> None:
         ["id", "table_name", "operation", "row_pk"],
         [
             (1, "companies", "delete", {"id": 9}),
-            (2, "permission_group_employees", "delete", {
-                "employee_id": 1,
-                "permission_group_id": 2,
-            }),
+            (2, "addresses", "delete", {"id": 4}),
         ],
     )
     connection_b, _cursor_b = fake_connection([], [])
@@ -142,25 +135,21 @@ def test_drain_delete_maps_pk_and_deletes_on_b(monkeypatch) -> None:
             "companies": lambda a, b, op, row_pks=None: calls.append(
                 (op, "companies", row_pks)
             ),
-            "permission_group_employees": lambda a, b, op, row_pks=None: calls.append(
-                (op, "permission_group_employees", row_pks)
+            "addresses": lambda a, b, op, row_pks=None: calls.append(
+                (op, "addresses", row_pks)
             ),
         },
     )
     monkeypatch.setattr(
         "src.orchestrator.TABLE_ORDER",
-        ["companies", "permission_group_employees"],
+        ["addresses", "companies"],
     )
 
     drain(connection_a, connection_b)
 
     assert calls == [
-        (
-            "delete",
-            "permission_group_employees",
-            [{"employee_id": 1, "permission_group_id": 2}],
-        ),
         ("delete", "companies", [{"id": 9}]),
+        ("delete", "addresses", [{"id": 4}]),
     ]
     assert cursor_a.execute.call_args_list[-1].args == (MARK_PROCESSED, ([1, 2],))
 
@@ -270,10 +259,7 @@ def test_drain_b_to_a_delete_passes_row_pks_in_reverse_order(monkeypatch) -> Non
         ["id", "table_name", "operation", "row_pk"],
         [
             (1, "enterprise", "delete", {"id": 9}),
-            (2, "permission_group_employee", "delete", {
-                "id_employee": 1,
-                "id_permission_group": 2,
-            }),
+            (2, "address", "delete", {"id": 4}),
         ],
     )
     connection_a, _cursor_a = fake_connection([], [])
@@ -284,25 +270,21 @@ def test_drain_b_to_a_delete_passes_row_pks_in_reverse_order(monkeypatch) -> Non
             "enterprise": lambda source, dest, op, row_pks=None: calls.append(
                 (op, "enterprise", row_pks)
             ),
-            "permission_group_employee": lambda source, dest, op, row_pks=None: calls.append(
-                (op, "permission_group_employee", row_pks)
+            "address": lambda source, dest, op, row_pks=None: calls.append(
+                (op, "address", row_pks)
             ),
         },
     )
     monkeypatch.setattr(
         "src.orchestrator.TABLE_ORDER_B",
-        ["enterprise", "permission_group_employee"],
+        ["address", "enterprise"],
     )
 
     drain_b_to_a(connection_b, connection_a)
 
     assert calls == [
-        (
-            "delete",
-            "permission_group_employee",
-            [{"id_employee": 1, "id_permission_group": 2}],
-        ),
         ("delete", "enterprise", [{"id": 9}]),
+        ("delete", "address", [{"id": 4}]),
     ]
     assert cursor_b.execute.call_args_list[-1].args == (MARK_PROCESSED, ([1, 2],))
 

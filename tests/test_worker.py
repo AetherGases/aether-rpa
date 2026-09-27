@@ -49,15 +49,14 @@ def test_prepare_creates_event_table_functions_and_triggers() -> None:
     assert SOURCE_TABLES == (
         "addresses",
         "storage_files",
-        "permission_groups",
         "permissions",
         "plans",
         "companies",
+        "permission_groups",
         "units",
         "sectors",
         "permission_group_permissions",
         "employees",
-        "permission_group_employees",
         "subscriptions",
     )
 
@@ -95,15 +94,14 @@ def test_source_tables_b_maps_table_order() -> None:
     assert SOURCE_TABLES_B == (
         "address",
         "storage_file",
-        "permission_group",
         "permission",
         "plan",
         "enterprise",
+        "permission_group",
         "unit",
         "department",
         "permission_group_permission",
         "employee",
-        "permission_group_employee",
         "plan_subscription",
     )
 

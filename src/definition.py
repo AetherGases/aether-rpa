@@ -1,13 +1,24 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import Enum
+
+
+class TransformError(Exception):
+    """Raised when a field value cannot be converted for the destination schema."""
 
 
 class EmployeeStatus(Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     IN_VACATION = "IN_VACATION"
+
+
+class StatusEmployeeA(Enum):
+    ACTIVE = "active"
+    ON_LEAVE = "on leave"
+    ON_VACATION = "on vacation"
+    DISMISSED = "dismissed"
 
 
 @dataclass
@@ -18,7 +29,7 @@ class AddressA:
     city: str
     neighborhood: str
     street: str
-    number: int
+    number: str
     complement: str | None
     created_at: datetime
     updated_at: datetime | None
@@ -175,8 +186,9 @@ class StorageFileTableB:
 @dataclass
 class PermissionGroupA:
     id: int
-    description: str
+    name: str
     created_at: datetime
+    company_id: int | None = None
 
 
 @dataclass
@@ -189,6 +201,7 @@ class PermissionGroupB:
     id: int
     description: str
     created_at: datetime
+    id_enterprise: int | None = None
 
 
 @dataclass
@@ -262,11 +275,12 @@ class EmployeeA:
     email: str
     phone: str
     password_hash: str
-    employee_status: EmployeeStatus
+    status: StatusEmployeeA
     created_at: datetime
     updated_at: datetime | None
     storage_file_id: int | None
     sector_id: int | None
+    permission_group_id: int | None
 
 
 @dataclass
@@ -287,33 +301,12 @@ class EmployeeB:
     updated_at: datetime | None
     id_storage_file: int | None
     id_department: int | None
+    id_permission_group: int | None
 
 
 @dataclass
 class EmployeeTableB:
     registers: list[EmployeeB]
-
-
-@dataclass
-class PermissionGroupEmployeeA:
-    employee_id: int
-    permission_group_id: int
-
-
-@dataclass
-class PermissionGroupEmployeeTableA:
-    registers: list[PermissionGroupEmployeeA]
-
-
-@dataclass
-class PermissionGroupEmployeeB:
-    id_employee: int
-    id_permission_group: int
-
-
-@dataclass
-class PermissionGroupEmployeeTableB:
-    registers: list[PermissionGroupEmployeeB]
 
 
 @dataclass
@@ -354,7 +347,7 @@ class PlanTableB:
 class PlanSubscriptionA:
     id: int
     is_active: bool
-    installments: int
+    installments: bool
     created_at: datetime
     deactivated_at: datetime | None
     plan_id: int | None
@@ -395,21 +388,21 @@ class TableSpec:
     table_name_b: str
     pk_a: tuple[str, ...]
     pk_b: tuple[str, ...]
-    enum_fields: tuple[str, ...] = ()
+    enum_coercions_a: dict[str, type[Enum]] = field(default_factory=dict)
+    enum_coercions_b: dict[str, type[Enum]] = field(default_factory=dict)
 
 
 TABLE_ORDER = [
     "addresses",
     "storage_files",
-    "permission_groups",
     "permissions",
     "plans",
     "companies",
+    "permission_groups",
     "units",
     "sectors",
     "permission_group_permissions",
     "employees",
-    "permission_group_employees",
     "subscriptions",
 ]
 
@@ -451,9 +444,13 @@ TABLES = {
         register_b=PermissionGroupB,
         table_a=PermissionGroupTableA,
         table_b=PermissionGroupTableB,
-        select_a="SELECT id, description, created_at FROM permission_groups",
-        select_b="SELECT id, description, created_at FROM permission_group",
-        field_map={},
+        select_a=(
+            "SELECT id, name, created_at, company_id FROM permission_groups"
+        ),
+        select_b=(
+            "SELECT id, description, created_at, id_enterprise FROM permission_group"
+        ),
+        field_map={"name": "description", "company_id": "id_enterprise"},
         table_name_a="permission_groups",
         table_name_b="permission_group",
         pk_a=("id",),
@@ -576,14 +573,18 @@ TABLES = {
         table_a=EmployeeTableA,
         table_b=EmployeeTableB,
         select_a=(
-            "SELECT id, cpf, name, email, phone, password_hash, employee_status, "
-            "created_at, updated_at, storage_file_id, sector_id FROM employees"
+            "SELECT id, cpf, name, email, phone, password_hash, status, "
+            "created_at, updated_at, storage_file_id, sector_id, permission_group_id "
+            "FROM employees"
         ),
         select_b=(
             "SELECT id, cpf, name, email, phone, password_hash, employee_status, "
-            "created_at, updated_at, id_storage_file, id_department FROM employee"
+            "created_at, updated_at, id_storage_file, id_department, id_permission_group "
+            "FROM employee"
         ),
         field_map={
+            "status": "employee_status",
+            "permission_group_id": "id_permission_group",
             "storage_file_id": "id_storage_file",
             "sector_id": "id_department",
         },
@@ -591,23 +592,8 @@ TABLES = {
         table_name_b="employee",
         pk_a=("id",),
         pk_b=("id",),
-        enum_fields=("employee_status",),
-    ),
-    "permission_group_employees": TableSpec(
-        register_a=PermissionGroupEmployeeA,
-        register_b=PermissionGroupEmployeeB,
-        table_a=PermissionGroupEmployeeTableA,
-        table_b=PermissionGroupEmployeeTableB,
-        select_a="SELECT employee_id, permission_group_id FROM permission_group_employees",
-        select_b="SELECT id_employee, id_permission_group FROM permission_group_employee",
-        field_map={
-            "employee_id": "id_employee",
-            "permission_group_id": "id_permission_group",
-        },
-        table_name_a="permission_group_employees",
-        table_name_b="permission_group_employee",
-        pk_a=("employee_id", "permission_group_id"),
-        pk_b=("id_employee", "id_permission_group"),
+        enum_coercions_a={"status": StatusEmployeeA},
+        enum_coercions_b={"employee_status": EmployeeStatus},
     ),
     "subscriptions": TableSpec(
         register_a=PlanSubscriptionA,

@@ -20,40 +20,42 @@ from src.definition import (
     PermissionB,
     PermissionGroupA,
     PermissionGroupB,
-    PermissionGroupEmployeeA,
-    PermissionGroupEmployeeB,
     PermissionGroupPermissionA,
     PermissionGroupPermissionB,
     PlanA,
     PlanB,
     PlanSubscriptionA,
     PlanSubscriptionB,
+    StatusEmployeeA,
     StorageFileA,
     StorageFileB,
     TableSpec,
+    TransformError,
     UnitA,
     UnitB,
 )
 
 CREATED_AT = datetime(2026, 9, 12, 14, 0, 0)
 
+EXPECTED_TABLE_ORDER = [
+    "addresses",
+    "storage_files",
+    "permissions",
+    "plans",
+    "companies",
+    "permission_groups",
+    "units",
+    "sectors",
+    "permission_group_permissions",
+    "employees",
+    "subscriptions",
+]
+
 
 def test_table_order_lists_parents_before_children() -> None:
-    assert TABLE_ORDER == [
-        "addresses",
-        "storage_files",
-        "permission_groups",
-        "permissions",
-        "plans",
-        "companies",
-        "units",
-        "sectors",
-        "permission_group_permissions",
-        "employees",
-        "permission_group_employees",
-        "subscriptions",
-    ]
+    assert TABLE_ORDER == EXPECTED_TABLE_ORDER
     assert set(TABLE_ORDER) == set(TABLES) == set(TABLE_DEST)
+    assert len(TABLE_ORDER) == 11
 
 
 def test_tables_catalog_uses_table_spec() -> None:
@@ -68,7 +70,8 @@ def test_tables_catalog_uses_table_spec() -> None:
     assert spec.pk_a == ("id",)
     assert spec.pk_b == ("id",)
     assert spec.field_map == {}
-    assert spec.enum_fields == ()
+    assert spec.enum_coercions_a == {}
+    assert spec.enum_coercions_b == {}
     assert "FROM addresses" in spec.select_a
     assert "FROM address" in spec.select_b
 
@@ -83,27 +86,22 @@ def test_divergent_field_maps_and_names() -> None:
     assert TABLES["sectors"].field_map == {"unit_id": "id_unit"}
     assert TABLES["sectors"].table_name_a == "sectors"
     assert TABLES["sectors"].table_name_b == "department"
+    assert TABLES["permission_groups"].field_map == {
+        "name": "description",
+        "company_id": "id_enterprise",
+    }
     assert TABLES["employees"].field_map == {
+        "status": "employee_status",
+        "permission_group_id": "id_permission_group",
         "storage_file_id": "id_storage_file",
         "sector_id": "id_department",
     }
-    assert TABLES["employees"].enum_fields == ("employee_status",)
+    assert TABLES["employees"].enum_coercions_a == {"status": StatusEmployeeA}
+    assert TABLES["employees"].enum_coercions_b == {"employee_status": EmployeeStatus}
     assert TABLES["permission_group_permissions"].field_map == {
         "permission_id": "id_permission",
         "permission_group_id": "id_permission_group",
     }
-    assert TABLES["permission_group_employees"].field_map == {
-        "employee_id": "id_employee",
-        "permission_group_id": "id_permission_group",
-    }
-    assert TABLES["permission_group_employees"].pk_a == (
-        "employee_id",
-        "permission_group_id",
-    )
-    assert TABLES["permission_group_employees"].pk_b == (
-        "id_employee",
-        "id_permission_group",
-    )
     assert TABLES["subscriptions"].field_map == {
         "plan_id": "id_plan",
         "company_id": "id_enterprise",
@@ -116,7 +114,6 @@ def test_identical_schema_tables_have_empty_field_map() -> None:
     for key in (
         "addresses",
         "storage_files",
-        "permission_groups",
         "permissions",
         "plans",
     ):
@@ -125,22 +122,29 @@ def test_identical_schema_tables_have_empty_field_map() -> None:
 
 def test_table_dest_maps_b_names_and_pks() -> None:
     assert TABLE_DEST["companies"] == ("enterprise", ("id",), ("id",))
-    assert TABLE_DEST["permission_group_employees"] == (
-        "permission_group_employee",
-        ("employee_id", "permission_group_id"),
-        ("id_employee", "id_permission_group"),
-    )
     assert TABLE_DEST["subscriptions"] == (
         "plan_subscription",
         ("id",),
         ("id",),
     )
+    assert "permission_group_employees" not in TABLE_DEST
 
 
 def test_employee_status_matches_database_b_values() -> None:
     assert EmployeeStatus.ACTIVE.value == "ACTIVE"
     assert EmployeeStatus.INACTIVE.value == "INACTIVE"
     assert EmployeeStatus.IN_VACATION.value == "IN_VACATION"
+
+
+def test_status_employee_a_matches_database_a_values() -> None:
+    assert StatusEmployeeA.ACTIVE.value == "active"
+    assert StatusEmployeeA.ON_LEAVE.value == "on leave"
+    assert StatusEmployeeA.ON_VACATION.value == "on vacation"
+    assert StatusEmployeeA.DISMISSED.value == "dismissed"
+
+
+def test_transform_error_is_exception() -> None:
+    assert issubclass(TransformError, Exception)
 
 
 def test_prefixed_registers_hold_a_and_b_fields() -> None:
@@ -151,7 +155,7 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
         city="Sao Paulo",
         neighborhood="Bela Vista",
         street="Avenida Paulista",
-        number=1000,
+        number="1000",
         complement=None,
         created_at=CREATED_AT,
         updated_at=None,
@@ -228,8 +232,10 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
     storage_b = StorageFileB(
         id=1, name="a", path="/a", created_at=CREATED_AT, updated_at=None
     )
-    group_a = PermissionGroupA(id=1, description="admin", created_at=CREATED_AT)
-    group_b = PermissionGroupB(id=1, description="admin", created_at=CREATED_AT)
+    group_a = PermissionGroupA(id=1, name="admin", created_at=CREATED_AT, company_id=1)
+    group_b = PermissionGroupB(
+        id=1, description="admin", created_at=CREATED_AT, id_enterprise=1
+    )
     permission_a = PermissionA(
         id=1,
         name="read",
@@ -267,11 +273,12 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
         email="ana@example.com",
         phone="11999999999",
         password_hash="hash",
-        employee_status=EmployeeStatus.ACTIVE,
+        status=StatusEmployeeA.ACTIVE,
         created_at=CREATED_AT,
         updated_at=None,
         storage_file_id=None,
         sector_id=None,
+        permission_group_id=2,
     )
     employee_b = EmployeeB(
         id=1,
@@ -285,9 +292,8 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
         updated_at=None,
         id_storage_file=None,
         id_department=None,
+        id_permission_group=2,
     )
-    pge_a = PermissionGroupEmployeeA(employee_id=1, permission_group_id=2)
-    pge_b = PermissionGroupEmployeeB(id_employee=1, id_permission_group=2)
     plan_a = PlanA(
         id=1,
         name="Pro",
@@ -311,7 +317,7 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
     sub_a = PlanSubscriptionA(
         id=1,
         is_active=True,
-        installments=1,
+        installments=True,
         created_at=CREATED_AT,
         deactivated_at=None,
         plan_id=1,
@@ -333,11 +339,11 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
     assert unit_a.company_id == unit_b.id_enterprise == 1
     assert department_a.unit_id == department_b.id_unit == 1
     assert storage_a.path == storage_b.path == "/a"
-    assert group_a.description == group_b.description
+    assert group_a.name == group_b.description
     assert permission_a.url == permission_b.url
     assert pgp_a.permission_id == pgp_b.id_permission == 1
     assert employee_a.sector_id is employee_b.id_department is None
-    assert pge_a.employee_id == pge_b.id_employee == 1
+    assert employee_a.permission_group_id == employee_b.id_permission_group == 2
     assert plan_a.price == plan_b.price
     assert sub_a.company_id == sub_b.id_enterprise == 1
     assert TABLES["companies"].register_a is EnterpriseA

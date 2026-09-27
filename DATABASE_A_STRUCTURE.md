@@ -1,14 +1,17 @@
 # Modelo de Dados
 
+Artefato de origem: `new_first_year_database.sql`. Tabelas abaixo cobrem o contrato RPA (11 tabelas). Colunas extras só de A (ex.: `country`, `email`, `currency`, `is_active`) permanecem no SQL mas ficam fora do mapeamento de replicação.
+
 ## Enums
 
-### `employee_status`
+### `status_employee`
 
-| Valor         |
-| ------------- |
-| `ACTIVE`      |
-| `INACTIVE`    |
-| `IN_VACATION` |
+| Valor          |
+| -------------- |
+| `active`       |
+| `on leave`     |
+| `on vacation`  |
+| `dismissed`    |
 
 # Referências
 
@@ -18,50 +21,60 @@
 | -------------- | -------------- | --------------------------- |
 | `id`           | `SERIAL`       | PK                          |
 | `zip_code`     | `CHAR(8)`      |                             |
-| `state`        | `VARCHAR(150)` | NOT NULL                    |
-| `city`         | `VARCHAR(150)` | NOT NULL                    |
+| `street`       | `VARCHAR(255)` | NOT NULL                    |
+| `number`       | `VARCHAR(20)`  | NOT NULL                    |
+| `complement`   | `VARCHAR(100)` |                             |
+| `city`         | `VARCHAR(100)` | NOT NULL                    |
 | `neighborhood` | `VARCHAR(150)` | NOT NULL                    |
-| `street`       | `VARCHAR(150)` | NOT NULL                    |
-| `number`       | `INTEGER`      | NOT NULL                    |
-| `complement`   | `VARCHAR(150)` |                             |
+| `state`        | `VARCHAR(100)` | NOT NULL                    |
+| `country`      | `VARCHAR(100)` | (só A)                      |
+| `is_active`    | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
 | `created_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at`   | `TIMESTAMP`    |                             |
+| `updated_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 
 ## `companies`
+
+| Campo               | Tipo           | Restrições                  |
+| ------------------- | -------------- | --------------------------- |
+| `id`                | `SERIAL`       | PK                          |
+| `name`              | `VARCHAR(255)` | NOT NULL                    |
+| `trade_name`        | `VARCHAR(150)` |                             |
+| `cnpj`              | `CHAR(14)`     | NOT NULL, UNIQUE            |
+| `size`              | `INTEGER`      | CHECK `size > 0` (só A)     |
+| `registration_date` | `DATE`         | (só A)                      |
+| `tax_id`            | `VARCHAR(50)`  | (só A)                      |
+| `email`             | `VARCHAR(255)` | (só A)                      |
+| `address_id`        | `INTEGER`      | FK → `addresses.id`         |
+| `is_active`         | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
+| `created_at`        | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at`        | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+
+## `units`
 
 | Campo        | Tipo           | Restrições                  |
 | ------------ | -------------- | --------------------------- |
 | `id`         | `SERIAL`       | PK                          |
-| `name`       | `VARCHAR(150)` | NOT NULL                    |
-| `trade_name` | `VARCHAR(150)` |                             |
-| `cnpj`       | `CHAR(14)`     | NOT NULL, UNIQUE            |
-| `created_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at` | `TIMESTAMP`    |                             |
+| `name`       | `VARCHAR(255)` | (só A)                      |
+| `company_id` | `INTEGER`      | FK → `companies.id`         |
 | `address_id` | `INTEGER`      | FK → `addresses.id`         |
-
-## `units`
-
-| Campo        | Tipo        | Restrições                  |
-| ------------ | ----------- | --------------------------- |
-| `id`         | `SERIAL`    | PK                          |
-| `cnae`       | `CHAR(7)`   |                             |
-| `cnpj`       | `CHAR(14)`  | NOT NULL, UNIQUE            |
-| `is_active`  | `BOOLEAN`   | NOT NULL, DEFAULT `TRUE`    |
-| `created_at` | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at` | `TIMESTAMP` |                             |
-| `company_id` | `INTEGER`   | FK → `companies.id`         |
-| `address_id` | `INTEGER`   | FK → `addresses.id`         |
+| `cnpj`       | `VARCHAR(50)`  | NOT NULL                    |
+| `cnae`       | `VARCHAR(50)`  |                             |
+| `is_active`  | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
+| `created_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 
 ## `sectors`
 
-| Campo         | Tipo           | Restrições                         |
-| ------------- | -------------- | ---------------------------------- |
-| `id`          | `SERIAL`       | PK                                 |
-| `name`        | `VARCHAR(150)` | NOT NULL                           |
-| `description` | `VARCHAR(150)` |                                    |
-| `created_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP`        |
-| `updated_at`  | `TIMESTAMP`    |                                    |
-| `unit_id`     | `INTEGER`      | FK → `units.id`, ON DELETE RESTRICT |
+| Campo         | Tipo           | Restrições                  |
+| ------------- | -------------- | --------------------------- |
+| `id`          | `SERIAL`       | PK                          |
+| `name`        | `VARCHAR(150)` | NOT NULL                    |
+| `description` | `VARCHAR(255)` |                             |
+| `unit_id`     | `INTEGER`      | FK → `units.id`             |
+| `company_id`  | `INTEGER`      | FK → `companies.id`         |
+| `is_active`   | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
+| `created_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 
 # Employees
 
@@ -73,96 +86,90 @@
 | `name`       | `VARCHAR(150)` | NOT NULL                    |
 | `path`       | `VARCHAR(255)` | NOT NULL                    |
 | `created_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at` | `TIMESTAMP`    |                             |
+| `updated_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 
 ## `permission_groups`
 
-| Campo         | Tipo           | Restrições                  |
-| ------------- | -------------- | --------------------------- |
-| `id`          | `SERIAL`       | PK                          |
-| `description` | `VARCHAR(150)` | NOT NULL                    |
-| `created_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| Campo        | Tipo           | Restrições                  |
+| ------------ | -------------- | --------------------------- |
+| `id`         | `SERIAL`       | PK                          |
+| `name`       | `VARCHAR(100)` | NOT NULL                    |
+| `company_id` | `INTEGER`      | FK → `companies.id`         |
+| `is_active`  | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
+| `created_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at` | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 
 ## `permissions`
 
 | Campo         | Tipo           | Restrições                  |
 | ------------- | -------------- | --------------------------- |
 | `id`          | `SERIAL`       | PK                          |
-| `name`        | `VARCHAR(150)` | NOT NULL                    |
-| `description` | `VARCHAR(150)` |                             |
-| `url`         | `VARCHAR(255)` | NOT NULL                    |
+| `name`        | `VARCHAR(100)` | NOT NULL                    |
+| `description` | `VARCHAR(255)` |                             |
+| `url`         | `VARCHAR(50)`  | NOT NULL                    |
+| `is_active`   | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
 | `created_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at`  | `TIMESTAMP`    |                             |
+| `updated_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 
 ## `permission_group_permissions`
 
 | Campo                 | Tipo        | Restrições                  |
 | --------------------- | ----------- | --------------------------- |
 | `id`                  | `SERIAL`    | PK                          |
-| `created_at`          | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at`          | `TIMESTAMP` |                             |
-| `permission_id`       | `INTEGER`   | FK → `permissions.id`       |
 | `permission_group_id` | `INTEGER`   | FK → `permission_groups.id` |
-
-### Constraints adicionais
-
-| Constraint                       | Campos                                          |
-| -------------------------------- | ----------------------------------------------- |
-| `uq_permission_group_permissions` | UNIQUE (`permission_id`, `permission_group_id`) |
+| `permission_id`       | `INTEGER`   | FK → `permissions.id`       |
+| `is_active`           | `BOOLEAN`   | DEFAULT `TRUE` (só A)       |
+| `created_at`          | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at`          | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP` |
 
 ## `employees`
 
-| Campo             | Tipo              | Restrições                  |
-| ----------------- | ----------------- | --------------------------- |
-| `id`              | `SERIAL`          | PK                          |
-| `cpf`             | `CHAR(11)`        | NOT NULL, UNIQUE            |
-| `name`            | `VARCHAR(150)`    | NOT NULL                    |
-| `email`           | `VARCHAR(255)`    | NOT NULL, UNIQUE            |
-| `phone`           | `VARCHAR(20)`     | NOT NULL                    |
-| `password_hash`   | `VARCHAR(255)`    | NOT NULL                    |
-| `employee_status` | `employee_status` | NOT NULL                    |
-| `created_at`      | `TIMESTAMP`       | DEFAULT `CURRENT_TIMESTAMP` |
-| `updated_at`      | `TIMESTAMP`       |                             |
-| `storage_file_id` | `INTEGER`         | FK → `storage_files.id`     |
-| `sector_id`       | `INTEGER`         | FK → `sectors.id`           |
-
-## `permission_group_employees`
-
-| Campo                 | Tipo      | Restrições                     |
-| --------------------- | --------- | ------------------------------ |
-| `employee_id`         | `INTEGER` | PK, FK → `employees.id`        |
-| `permission_group_id` | `INTEGER` | PK, FK → `permission_groups.id` |
-
-### Chave primária composta
-
-`(employee_id, permission_group_id)`
+| Campo                 | Tipo              | Restrições                  |
+| --------------------- | ----------------- | --------------------------- |
+| `id`                  | `SERIAL`          | PK                          |
+| `cpf`                 | `CHAR(11)`        | NOT NULL, UNIQUE            |
+| `company_id`          | `INTEGER`         | FK → `companies.id` (só A)  |
+| `permission_group_id` | `INTEGER`         | NOT NULL, FK → `permission_groups.id` |
+| `unit_id`             | `INTEGER`         | FK → `units.id` (só A)      |
+| `sector_id`           | `INTEGER`         | NOT NULL, FK → `sectors.id` |
+| `name`                | `VARCHAR(255)`    | NOT NULL                    |
+| `email`               | `VARCHAR(255)`    | NOT NULL                    |
+| `phone`               | `VARCHAR(20)`     |                             |
+| `password_hash`       | `VARCHAR(255)`    | NOT NULL                    |
+| `status`              | `status_employee` | NOT NULL                    |
+| `storage_file_id`     | `INTEGER`         | FK → `storage_files.id`     |
+| `is_active`           | `BOOLEAN`         | DEFAULT `TRUE` (só A)       |
+| `created_at`          | `TIMESTAMP`       | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at`          | `TIMESTAMP`       | DEFAULT `CURRENT_TIMESTAMP` |
 
 # Subscription
 
 ## `plans`
 
-| Campo           | Tipo           | Restrições                          |
-| --------------- | -------------- | ----------------------------------- |
-| `id`            | `SERIAL`       | PK                                  |
-| `name`          | `VARCHAR(50)`  | NOT NULL, UNIQUE                    |
-| `description`   | `VARCHAR(150)` |                                     |
-| `price`         | `NUMERIC`      | NOT NULL, CHECK `price >= 0`        |
-| `duration_days` | `INTEGER`      | NOT NULL, CHECK `duration_days > 0` |
-| `is_active`     | `BOOLEAN`      | NOT NULL, DEFAULT `TRUE`            |
-| `created_at`    | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP`         |
-| `updated_at`    | `TIMESTAMP`    |                                     |
+| Campo           | Tipo            | Restrições                          |
+| --------------- | --------------- | ----------------------------------- |
+| `id`            | `SERIAL`        | PK                                  |
+| `name`          | `VARCHAR(100)`  | NOT NULL                            |
+| `description`   | `VARCHAR(255)`  |                                     |
+| `price`         | `NUMERIC(12,2)` | NOT NULL, CHECK `price >= 0`        |
+| `duration_days` | `INTEGER`       | NOT NULL, CHECK `duration_days > 0` |
+| `currency`      | `VARCHAR(10)`   | NOT NULL, DEFAULT `'Reais'` (só A)  |
+| `is_active`     | `BOOLEAN`       | DEFAULT `TRUE` (só A)               |
+| `created_at`    | `TIMESTAMP`     | DEFAULT `CURRENT_TIMESTAMP`         |
+| `updated_at`    | `TIMESTAMP`     | DEFAULT `CURRENT_TIMESTAMP`         |
 
 ## `subscriptions`
 
-| Campo            | Tipo        | Restrições                          |
-| ---------------- | ----------- | ----------------------------------- |
-| `id`             | `SERIAL`    | PK                                  |
-| `is_active`      | `BOOLEAN`   | NOT NULL, DEFAULT `TRUE`            |
-| `installments`   | `INTEGER`   | NOT NULL, CHECK `installments >= 0` |
-| `created_at`     | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP`         |
-| `deactivated_at` | `TIMESTAMP` |                                     |
-| `plan_id`        | `INTEGER`   | FK → `plans.id`, ON DELETE CASCADE  |
-| `company_id`     | `INTEGER`   | FK → `companies.id`                 |
+| Campo            | Tipo        | Restrições                  |
+| ---------------- | ----------- | --------------------------- |
+| `id`             | `SERIAL`    | PK                          |
+| `company_id`     | `INTEGER`   | FK → `companies.id`         |
+| `plan_id`        | `INTEGER`   | FK → `plans.id`             |
+| `is_active`      | `BOOLEAN`   | DEFAULT `TRUE`              |
+| `installments`   | `BOOLEAN`   | DEFAULT `TRUE`              |
+| `deactivated_at` | `TIMESTAMP` |                             |
+| `created_at`     | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP` |
+| `updated_at`     | `TIMESTAMP` | DEFAULT `CURRENT_TIMESTAMP` |
 
 # RPA
 
@@ -177,37 +184,26 @@
 | `created_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 | `processed_at` | `TIMESTAMP`    |                             |
 
-`src/worker.py` (`prepare`) cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Triggers nas 12 tabelas cadastrais. Só banco A. Conexões do RPA usam `application_name=aether-rpa` e os triggers ignoram esses writes.
+`src/worker.py` (`prepare`) cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Triggers nas 11 tabelas de negócio do contrato: `addresses`, `storage_files`, `permission_groups`, `permissions`, `plans`, `companies`, `units`, `sectors`, `permission_group_permissions`, `employees`, `subscriptions`. Só banco A. Conexões do RPA usam `application_name=aether-rpa` e os triggers ignoram esses writes.
 
-# Relacionamentos
+# Relacionamentos (contrato RPA)
 
-| Origem                                             | Destino                   | Comportamento      |
-| -------------------------------------------------- | ------------------------- | ------------------ |
-| `companies.address_id`                             | `addresses.id`            |                    |
-| `units.company_id`                                 | `companies.id`            |                    |
-| `units.address_id`                                 | `addresses.id`            |                    |
-| `sectors.unit_id`                                  | `units.id`                | ON DELETE RESTRICT |
-| `permission_group_permissions.permission_id`       | `permissions.id`          |                    |
-| `permission_group_permissions.permission_group_id` | `permission_groups.id`    |                    |
-| `employees.storage_file_id`                        | `storage_files.id`        |                    |
-| `employees.sector_id`                              | `sectors.id`              |                    |
-| `permission_group_employees.employee_id`           | `employees.id`            |                    |
-| `permission_group_employees.permission_group_id`   | `permission_groups.id`    |                    |
-| `subscriptions.plan_id`                            | `plans.id`                | ON DELETE CASCADE  |
-| `subscriptions.company_id`                         | `companies.id`            |                    |
+| Origem                                             | Destino                   |
+| -------------------------------------------------- | ------------------------- |
+| `companies.address_id`                             | `addresses.id`            |
+| `units.company_id`                                 | `companies.id`            |
+| `units.address_id`                                 | `addresses.id`            |
+| `sectors.unit_id`                                  | `units.id`                |
+| `sectors.company_id`                               | `companies.id`            |
+| `permission_groups.company_id`                     | `companies.id`            |
+| `permission_group_permissions.permission_group_id` | `permission_groups.id`    |
+| `permission_group_permissions.permission_id`       | `permissions.id`          |
+| `employees.storage_file_id`                        | `storage_files.id`        |
+| `employees.sector_id`                              | `sectors.id`              |
+| `employees.permission_group_id`                    | `permission_groups.id`    |
+| `subscriptions.plan_id`                            | `plans.id`                |
+| `subscriptions.company_id`                         | `companies.id`            |
 
 # Índices
 
-| Índice                                                | Tabela                        | Campo                   |
-| ----------------------------------------------------- | ----------------------------- | ----------------------- |
-| `idx_companies_address_id`                            | `companies`                   | `address_id`            |
-| `idx_units_company_id`                                | `units`                       | `company_id`            |
-| `idx_units_address_id`                                | `units`                       | `address_id`            |
-| `idx_sectors_unit_id`                                 | `sectors`                     | `unit_id`               |
-| `idx_permission_group_permissions_permission_id`      | `permission_group_permissions` | `permission_id`         |
-| `idx_permission_group_permissions_permission_group_id` | `permission_group_permissions` | `permission_group_id`   |
-| `idx_employees_storage_file_id`                       | `employees`                   | `storage_file_id`       |
-| `idx_employees_sector_id`                             | `employees`                   | `sector_id`             |
-| `idx_employees_employee_status`                       | `employees`                   | `employee_status`       |
-| `idx_subscriptions_plan_id`                           | `subscriptions`               | `plan_id`               |
-| `idx_subscriptions_company_id`                        | `subscriptions`               | `company_id`            |
+Índices adicionais podem ser criados pelo worker em `prepare`. Os FKs acima definem os joins principais do contrato.
