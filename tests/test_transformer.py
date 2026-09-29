@@ -185,7 +185,7 @@ EMPLOYEE_ROW_A = (
     "ana@example.com",
     "11999999999",
     "hash",
-    "active",
+    "ACTIVE",
     CREATED_AT,
     None,
     5,
@@ -444,7 +444,7 @@ def test_transform_to_b_subscriptions_raises_for_null_installments() -> None:
 
 @pytest.mark.parametrize(
     "status",
-    ["active", "on vacation", "on leave", "dismissed"],
+    ["ACTIVE", "INACTIVE", "IN_VACATION"],
 )
 def test_transform_to_b_employees_preserves_status(status: str) -> None:
     row = (*EMPLOYEE_ROW_A[:6], status, *EMPLOYEE_ROW_A[7:])
@@ -457,7 +457,7 @@ def test_transform_to_b_employees_preserves_status(status: str) -> None:
 
 @pytest.mark.parametrize(
     "status",
-    ["active", "on vacation", "on leave", "dismissed"],
+    ["ACTIVE", "INACTIVE", "IN_VACATION"],
 )
 def test_transform_to_a_employees_preserves_status(status: str) -> None:
     row = (*EMPLOYEE_ROW_A[:6], status, *EMPLOYEE_ROW_A[7:11], 2)
@@ -468,11 +468,11 @@ def test_transform_to_a_employees_preserves_status(status: str) -> None:
     assert result.registers[0].status == StatusEmployee(status)
 
 
-def test_dismissed_round_trip_preserves_status() -> None:
-    row_a = (*EMPLOYEE_ROW_A[:6], "dismissed", *EMPLOYEE_ROW_A[7:])
+def test_inactive_round_trip_preserves_status() -> None:
+    row_a = (*EMPLOYEE_ROW_A[:6], "INACTIVE", *EMPLOYEE_ROW_A[7:])
     connection_a, _ = fake_connection(EMPLOYEE_COLUMNS_A, [row_a])
     to_b = transform_to_b(connection_a, "employees")
-    assert to_b.registers[0].employee_status == StatusEmployee.DISMISSED
+    assert to_b.registers[0].employee_status == StatusEmployee.INACTIVE
 
     row_b = (
         1,
@@ -481,7 +481,7 @@ def test_dismissed_round_trip_preserves_status() -> None:
         "ana@example.com",
         "11999999999",
         "hash",
-        "dismissed",
+        "INACTIVE",
         CREATED_AT,
         None,
         5,
@@ -490,7 +490,7 @@ def test_dismissed_round_trip_preserves_status() -> None:
     )
     connection_b, _ = fake_connection(EMPLOYEE_COLUMNS_B, [row_b])
     to_a = transform_to_a(connection_b, "employees")
-    assert to_a.registers[0].status == StatusEmployee.DISMISSED
+    assert to_a.registers[0].status == StatusEmployee.INACTIVE
 
 
 def test_installments_round_trip_loss_above_one() -> None:

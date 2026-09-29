@@ -325,7 +325,7 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
                 "ana@example.com",
                 "11999999999",
                 "hash",
-                "active",
+                "ACTIVE",
                 CREATED_AT,
                 None,
                 5,

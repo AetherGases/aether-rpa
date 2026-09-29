@@ -130,10 +130,9 @@ def test_table_dest_maps_b_names_and_pks() -> None:
 
 
 def test_status_employee_matches_database_values() -> None:
-    assert StatusEmployee.ACTIVE.value == "active"
-    assert StatusEmployee.ON_LEAVE.value == "on leave"
-    assert StatusEmployee.ON_VACATION.value == "on vacation"
-    assert StatusEmployee.DISMISSED.value == "dismissed"
+    assert StatusEmployee.ACTIVE.value == "ACTIVE"
+    assert StatusEmployee.INACTIVE.value == "INACTIVE"
+    assert StatusEmployee.IN_VACATION.value == "IN_VACATION"
 
 
 def test_transform_error_is_exception() -> None:

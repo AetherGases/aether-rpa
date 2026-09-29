@@ -9,10 +9,9 @@ class TransformError(Exception):
 
 
 class StatusEmployee(Enum):
-    ACTIVE = "active"
-    ON_LEAVE = "on leave"
-    ON_VACATION = "on vacation"
-    DISMISSED = "dismissed"
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    IN_VACATION = "IN_VACATION"
 
 
 @dataclass

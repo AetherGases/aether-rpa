@@ -6,12 +6,11 @@ Artefato de origem: `new_first_year_database.sql`. Tabelas abaixo cobrem o contr
 
 ### `status_employee`
 
-| Valor          |
-| -------------- |
-| `active`       |
-| `on leave`     |
-| `on vacation`  |
-| `dismissed`    |
+| Valor         |
+| ------------- |
+| `ACTIVE`      |
+| `INACTIVE`    |
+| `IN_VACATION` |
 
 # Referências
 
