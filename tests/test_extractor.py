@@ -11,10 +11,9 @@ from src.definition import (
     AddressTableB,
     EmployeeA,
     EmployeeB,
-    EmployeeStatus,
+    StatusEmployee,
     EmployeeTableA,
     EmployeeTableB,
-    StatusEmployeeA,
 )
 from src.extractor import extract, extract_from_a, extract_from_b
 from tests.fake_db import fake_connection
@@ -145,7 +144,7 @@ EMPLOYEE_ROW_B = (
     "ana@example.com",
     "11999999999",
     "hash",
-    "IN_VACATION",
+    "on vacation",
     CREATED_AT,
     None,
     5,
@@ -204,7 +203,7 @@ def test_extract_from_a_fills_employee_with_status_enum() -> None:
                 email="ana@example.com",
                 phone="11999999999",
                 password_hash="hash",
-                status=StatusEmployeeA.ACTIVE,
+                status=StatusEmployee.ACTIVE,
                 created_at=CREATED_AT,
                 updated_at=None,
                 storage_file_id=5,
@@ -230,7 +229,7 @@ def test_extract_from_b_fills_employee_with_in_vacation_status() -> None:
                 email="ana@example.com",
                 phone="11999999999",
                 password_hash="hash",
-                employee_status=EmployeeStatus.IN_VACATION,
+                employee_status=StatusEmployee.ON_VACATION,
                 created_at=CREATED_AT,
                 updated_at=None,
                 id_storage_file=5,

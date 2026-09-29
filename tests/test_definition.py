@@ -13,7 +13,7 @@ from src.definition import (
     DepartmentB,
     EmployeeA,
     EmployeeB,
-    EmployeeStatus,
+    StatusEmployee,
     EnterpriseA,
     EnterpriseB,
     PermissionA,
@@ -26,7 +26,6 @@ from src.definition import (
     PlanB,
     PlanSubscriptionA,
     PlanSubscriptionB,
-    StatusEmployeeA,
     StorageFileA,
     StorageFileB,
     TableSpec,
@@ -96,8 +95,8 @@ def test_divergent_field_maps_and_names() -> None:
         "storage_file_id": "id_storage_file",
         "sector_id": "id_department",
     }
-    assert TABLES["employees"].enum_coercions_a == {"status": StatusEmployeeA}
-    assert TABLES["employees"].enum_coercions_b == {"employee_status": EmployeeStatus}
+    assert TABLES["employees"].enum_coercions_a == {"status": StatusEmployee}
+    assert TABLES["employees"].enum_coercions_b == {"employee_status": StatusEmployee}
     assert TABLES["permission_group_permissions"].field_map == {
         "permission_id": "id_permission",
         "permission_group_id": "id_permission_group",
@@ -130,17 +129,11 @@ def test_table_dest_maps_b_names_and_pks() -> None:
     assert "permission_group_employees" not in TABLE_DEST
 
 
-def test_employee_status_matches_database_b_values() -> None:
-    assert EmployeeStatus.ACTIVE.value == "ACTIVE"
-    assert EmployeeStatus.INACTIVE.value == "INACTIVE"
-    assert EmployeeStatus.IN_VACATION.value == "IN_VACATION"
-
-
-def test_status_employee_a_matches_database_a_values() -> None:
-    assert StatusEmployeeA.ACTIVE.value == "active"
-    assert StatusEmployeeA.ON_LEAVE.value == "on leave"
-    assert StatusEmployeeA.ON_VACATION.value == "on vacation"
-    assert StatusEmployeeA.DISMISSED.value == "dismissed"
+def test_status_employee_matches_database_values() -> None:
+    assert StatusEmployee.ACTIVE.value == "active"
+    assert StatusEmployee.ON_LEAVE.value == "on leave"
+    assert StatusEmployee.ON_VACATION.value == "on vacation"
+    assert StatusEmployee.DISMISSED.value == "dismissed"
 
 
 def test_transform_error_is_exception() -> None:
@@ -273,7 +266,7 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
         email="ana@example.com",
         phone="11999999999",
         password_hash="hash",
-        status=StatusEmployeeA.ACTIVE,
+        status=StatusEmployee.ACTIVE,
         created_at=CREATED_AT,
         updated_at=None,
         storage_file_id=None,
@@ -287,7 +280,7 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
         email="ana@example.com",
         phone="11999999999",
         password_hash="hash",
-        employee_status=EmployeeStatus.ACTIVE,
+        employee_status=StatusEmployee.ACTIVE,
         created_at=CREATED_AT,
         updated_at=None,
         id_storage_file=None,

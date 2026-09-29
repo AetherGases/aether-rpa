@@ -1,8 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from unittest.mock import Mock
-
 import pytest
 
 from src.definition import (
@@ -12,7 +10,7 @@ from src.definition import (
     AddressTableB,
     EmployeeA,
     EmployeeB,
-    EmployeeStatus,
+    StatusEmployee,
     EmployeeTableA,
     EmployeeTableB,
     EnterpriseA,
@@ -27,16 +25,9 @@ from src.definition import (
     PlanSubscriptionB,
     PlanSubscriptionTableA,
     PlanSubscriptionTableB,
-    StatusEmployeeA,
     TransformError,
 )
-from src.transformer import (
-    _status_a_to_b,
-    _status_b_to_a,
-    transform,
-    transform_to_a,
-    transform_to_b,
-)
+from src.transformer import transform, transform_to_a, transform_to_b
 from tests.fake_db import fake_connection
 
 CREATED_AT = datetime(2026, 9, 12, 14, 0, 0)
@@ -217,7 +208,7 @@ def test_transform_to_b_employees_remaps_ids_and_status() -> None:
                 email="ana@example.com",
                 phone="11999999999",
                 password_hash="hash",
-                employee_status=EmployeeStatus.ACTIVE,
+                employee_status=StatusEmployee.ACTIVE,
                 created_at=CREATED_AT,
                 updated_at=None,
                 id_storage_file=5,
@@ -452,49 +443,36 @@ def test_transform_to_b_subscriptions_raises_for_null_installments() -> None:
 
 
 @pytest.mark.parametrize(
-    ("status_a", "status_b"),
-    [
-        ("active", EmployeeStatus.ACTIVE),
-        ("on vacation", EmployeeStatus.IN_VACATION),
-        ("on leave", EmployeeStatus.INACTIVE),
-        ("dismissed", EmployeeStatus.INACTIVE),
-    ],
+    "status",
+    ["active", "on vacation", "on leave", "dismissed"],
 )
-def test_transform_to_b_employees_status_mapping(
-    status_a: str, status_b: EmployeeStatus
-) -> None:
-    row = (*EMPLOYEE_ROW_A[:6], status_a, *EMPLOYEE_ROW_A[7:])
+def test_transform_to_b_employees_preserves_status(status: str) -> None:
+    row = (*EMPLOYEE_ROW_A[:6], status, *EMPLOYEE_ROW_A[7:])
     connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_A, [row])
 
     result = transform_to_b(connection, "employees")
 
-    assert result.registers[0].employee_status == status_b
+    assert result.registers[0].employee_status == StatusEmployee(status)
 
 
 @pytest.mark.parametrize(
-    ("status_b", "status_a"),
-    [
-        ("ACTIVE", StatusEmployeeA.ACTIVE),
-        ("IN_VACATION", StatusEmployeeA.ON_VACATION),
-        ("INACTIVE", StatusEmployeeA.ON_LEAVE),
-    ],
+    "status",
+    ["active", "on vacation", "on leave", "dismissed"],
 )
-def test_transform_to_a_employees_status_mapping(
-    status_b: str, status_a: StatusEmployeeA
-) -> None:
-    row = (*EMPLOYEE_ROW_A[:6], status_b, *EMPLOYEE_ROW_A[7:11], 2)
+def test_transform_to_a_employees_preserves_status(status: str) -> None:
+    row = (*EMPLOYEE_ROW_A[:6], status, *EMPLOYEE_ROW_A[7:11], 2)
     connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_B, [row])
 
     result = transform_to_a(connection, "employees")
 
-    assert result.registers[0].status == status_a
+    assert result.registers[0].status == StatusEmployee(status)
 
 
-def test_dismissed_round_trip_becomes_on_leave() -> None:
+def test_dismissed_round_trip_preserves_status() -> None:
     row_a = (*EMPLOYEE_ROW_A[:6], "dismissed", *EMPLOYEE_ROW_A[7:])
     connection_a, _ = fake_connection(EMPLOYEE_COLUMNS_A, [row_a])
     to_b = transform_to_b(connection_a, "employees")
-    assert to_b.registers[0].employee_status == EmployeeStatus.INACTIVE
+    assert to_b.registers[0].employee_status == StatusEmployee.DISMISSED
 
     row_b = (
         1,
@@ -503,7 +481,7 @@ def test_dismissed_round_trip_becomes_on_leave() -> None:
         "ana@example.com",
         "11999999999",
         "hash",
-        "INACTIVE",
+        "dismissed",
         CREATED_AT,
         None,
         5,
@@ -512,7 +490,7 @@ def test_dismissed_round_trip_becomes_on_leave() -> None:
     )
     connection_b, _ = fake_connection(EMPLOYEE_COLUMNS_B, [row_b])
     to_a = transform_to_a(connection_b, "employees")
-    assert to_a.registers[0].status == StatusEmployeeA.ON_LEAVE
+    assert to_a.registers[0].status == StatusEmployee.DISMISSED
 
 
 def test_installments_round_trip_loss_above_one() -> None:
@@ -550,44 +528,3 @@ def test_transform_to_b_addresses_raises_for_null_number() -> None:
     with pytest.raises(TransformError, match="address number cannot be null"):
         transform_to_b(connection, "addresses")
 
-
-def test_transform_to_b_employees_raises_for_null_status() -> None:
-    row = (*EMPLOYEE_ROW_A[:6], None, *EMPLOYEE_ROW_A[7:])
-    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_A, [row])
-
-    with pytest.raises(TransformError, match="employee status cannot be null"):
-        transform_to_b(connection, "employees")
-
-
-def test_transform_to_a_employees_raises_for_null_status() -> None:
-    row = (*EMPLOYEE_ROW_A[:6], None, *EMPLOYEE_ROW_A[7:11], 2)
-    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_B, [row])
-
-    with pytest.raises(TransformError, match="employee status cannot be null"):
-        transform_to_a(connection, "employees")
-
-
-def test_transform_to_b_employees_raises_for_unknown_status() -> None:
-    row = (*EMPLOYEE_ROW_A[:6], "invalid", *EMPLOYEE_ROW_A[7:])
-    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_A, [row])
-
-    with pytest.raises(TransformError, match="unknown employee status"):
-        transform_to_b(connection, "employees")
-
-
-def test_transform_to_a_employees_raises_for_unknown_status() -> None:
-    row = (*EMPLOYEE_ROW_A[:6], "UNKNOWN", *EMPLOYEE_ROW_A[7:11], 2)
-    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_B, [row])
-
-    with pytest.raises(TransformError, match="unknown employee status"):
-        transform_to_a(connection, "employees")
-
-
-def test_status_a_to_b_raises_for_unmapped_enum_member() -> None:
-    with pytest.raises(TransformError, match="unknown employee status in A"):
-        _status_a_to_b(Mock(spec=StatusEmployeeA))
-
-
-def test_status_b_to_a_raises_for_unmapped_enum_member() -> None:
-    with pytest.raises(TransformError, match="unknown employee status in B"):
-        _status_b_to_a(Mock(spec=EmployeeStatus))

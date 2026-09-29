@@ -11,7 +11,7 @@ from src.definition import (
     AddressTableA,
     AddressTableB,
     EmployeeB,
-    EmployeeStatus,
+    StatusEmployee,
     EmployeeTableB,
 )
 from src.driver import delete_rows, drive, drive_to_a, drive_to_b
@@ -293,7 +293,7 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
                 email="ana@example.com",
                 phone="11999999999",
                 password_hash="hash",
-                employee_status=EmployeeStatus.ACTIVE,
+                employee_status=StatusEmployee.ACTIVE,
                 created_at=CREATED_AT,
                 updated_at=None,
                 id_storage_file=5,
@@ -325,7 +325,7 @@ def test_drive_to_b_employees_insert_converts_enum_to_string() -> None:
                 "ana@example.com",
                 "11999999999",
                 "hash",
-                "ACTIVE",
+                "active",
                 CREATED_AT,
                 None,
                 5,
