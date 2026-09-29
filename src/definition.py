@@ -8,17 +8,10 @@ class TransformError(Exception):
     """Raised when a field value cannot be converted for the destination schema."""
 
 
-class EmployeeStatus(Enum):
+class StatusEmployee(Enum):
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     IN_VACATION = "IN_VACATION"
-
-
-class StatusEmployeeA(Enum):
-    ACTIVE = "active"
-    ON_LEAVE = "on leave"
-    ON_VACATION = "on vacation"
-    DISMISSED = "dismissed"
 
 
 @dataclass
@@ -275,7 +268,7 @@ class EmployeeA:
     email: str
     phone: str
     password_hash: str
-    status: StatusEmployeeA
+    status: StatusEmployee
     created_at: datetime
     updated_at: datetime | None
     storage_file_id: int | None
@@ -296,7 +289,7 @@ class EmployeeB:
     email: str
     phone: str
     password_hash: str
-    employee_status: EmployeeStatus
+    employee_status: StatusEmployee
     created_at: datetime
     updated_at: datetime | None
     id_storage_file: int | None
@@ -592,8 +585,8 @@ TABLES = {
         table_name_b="employee",
         pk_a=("id",),
         pk_b=("id",),
-        enum_coercions_a={"status": StatusEmployeeA},
-        enum_coercions_b={"employee_status": EmployeeStatus},
+        enum_coercions_a={"status": StatusEmployee},
+        enum_coercions_b={"employee_status": StatusEmployee},
     ),
     "subscriptions": TableSpec(
         register_a=PlanSubscriptionA,

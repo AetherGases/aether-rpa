@@ -1,25 +1,7 @@
 from dataclasses import fields
 
-from src.definition import (
-    TABLES,
-    EmployeeStatus,
-    StatusEmployeeA,
-    TransformError,
-)
+from src.definition import TABLES, TransformError
 from src.extractor import extract_from_a, extract_from_b
-
-_STATUS_A_TO_B = {
-    StatusEmployeeA.ACTIVE: EmployeeStatus.ACTIVE,
-    StatusEmployeeA.ON_VACATION: EmployeeStatus.IN_VACATION,
-    StatusEmployeeA.ON_LEAVE: EmployeeStatus.INACTIVE,
-    StatusEmployeeA.DISMISSED: EmployeeStatus.INACTIVE,
-}
-
-_STATUS_B_TO_A = {
-    EmployeeStatus.ACTIVE: StatusEmployeeA.ACTIVE,
-    EmployeeStatus.IN_VACATION: StatusEmployeeA.ON_VACATION,
-    EmployeeStatus.INACTIVE: StatusEmployeeA.ON_LEAVE,
-}
 
 
 def transform(table, register_cls, table_cls, field_map, table_key, to_b):
@@ -65,11 +47,6 @@ def _apply_conversions(kwargs, table_key, to_b):
             kwargs["number"] = _address_number_a_to_b(kwargs.get("number"))
         else:
             kwargs["number"] = _address_number_b_to_a(kwargs.get("number"))
-    elif table_key == "employees":
-        if to_b:
-            kwargs["employee_status"] = _status_a_to_b(kwargs.get("employee_status"))
-        else:
-            kwargs["status"] = _status_b_to_a(kwargs.get("status"))
     elif table_key == "subscriptions":
         if to_b:
             kwargs["installments"] = _installments_a_to_b(kwargs.get("installments"))
@@ -91,34 +68,6 @@ def _address_number_b_to_a(value):
     if value is None:
         raise TransformError("address number cannot be null")
     return str(value)
-
-
-def _status_a_to_b(value):
-    if value is None:
-        raise TransformError("employee status cannot be null")
-    if isinstance(value, str):
-        try:
-            value = StatusEmployeeA(value)
-        except ValueError as exc:
-            raise TransformError(f"unknown employee status in A: {value!r}") from exc
-    try:
-        return _STATUS_A_TO_B[value]
-    except KeyError as exc:
-        raise TransformError(f"unknown employee status in A: {value!r}") from exc
-
-
-def _status_b_to_a(value):
-    if value is None:
-        raise TransformError("employee status cannot be null")
-    if isinstance(value, str):
-        try:
-            value = EmployeeStatus(value)
-        except ValueError as exc:
-            raise TransformError(f"unknown employee status in B: {value!r}") from exc
-    try:
-        return _STATUS_B_TO_A[value]
-    except KeyError as exc:
-        raise TransformError(f"unknown employee status in B: {value!r}") from exc
 
 
 def _installments_a_to_b(value):
