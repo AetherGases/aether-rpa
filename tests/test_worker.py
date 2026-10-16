@@ -400,6 +400,36 @@ def test_connect_a_and_connect_b_use_env_urls(monkeypatch) -> None:
     fake.connect.assert_any_call("postgresql://b", application_name=APPLICATION_NAME)
 
 
+def test_connect_a_and_connect_b_use_postgres_env_when_no_legacy_urls(
+    monkeypatch,
+) -> None:
+    import sys
+
+    fake = MagicMock()
+    fake.connect.side_effect = ["conn-a", "conn-b"]
+    monkeypatch.setitem(sys.modules, "psycopg2", fake)
+    monkeypatch.delenv("DATABASE_A_URL", raising=False)
+    monkeypatch.delenv("DATABASE_B_URL", raising=False)
+    monkeypatch.setenv("POSTGRES_USER", "u")
+    monkeypatch.setenv("POSTGRES_PASSWORD", "p")
+    monkeypatch.setenv("POSTGRES_HOST", "cluster")
+    monkeypatch.setenv("POSTGRES_PORT", "5432")
+    monkeypatch.setenv("POSTGRES_SSLMODE", "require")
+    monkeypatch.setenv("POSTGRES_DB_FIRST_YEAR", "year_one")
+    monkeypatch.setenv("POSTGRES_DB", "year_two")
+
+    assert connect_a() == "conn-a"
+    assert connect_b() == "conn-b"
+    fake.connect.assert_any_call(
+        "postgresql://u:p@cluster:5432/year_one?sslmode=require",
+        application_name=APPLICATION_NAME,
+    )
+    fake.connect.assert_any_call(
+        "postgresql://u:p@cluster:5432/year_two?sslmode=require",
+        application_name=APPLICATION_NAME,
+    )
+
+
 def test_connect_a_and_connect_b_use_explicit_url(monkeypatch) -> None:
     import sys
 

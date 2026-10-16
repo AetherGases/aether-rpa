@@ -15,17 +15,28 @@ pip install -r requirements.txt
 
 ## Variáveis de ambiente
 
+Em produção, A e B costumam estar no **mesmo cluster PostgreSQL**, com credenciais compartilhadas e nomes de banco distintos (GitHub Environments / Secrets):
+
 | Variável | Descrição |
 | -------- | --------- |
-| `DATABASE_A_URL` | URL libpq do banco A (cadastral) |
-| `DATABASE_B_URL` | URL libpq do banco B (core) |
+| `POSTGRES_USER` | Usuário |
+| `POSTGRES_PASSWORD` | Senha |
+| `POSTGRES_HOST` | Host do cluster |
+| `POSTGRES_PORT` | Porta (ex.: `5432`) |
+| `POSTGRES_SSLMODE` | Modo SSL libpq (ex.: `require`) |
+| `POSTGRES_DB_FIRST_YEAR` | Nome do banco **A** (cadastral / primeiro ano) |
+| `POSTGRES_DB` | Nome do banco **B** (core / segundo ano) |
 
-Exemplo (copie `.env.example` e ajuste):
+O worker monta as URLs de conexão a partir dessas variáveis (`sslmode` na query string).
 
-```
-DATABASE_A_URL=postgresql://user:password@localhost:5432/aether_a
-DATABASE_B_URL=postgresql://user:password@localhost:5432/aether_b
-```
+Para desenvolvimento local, ainda é possível definir URLs completas (têm precedência):
+
+| Variável | Descrição |
+| -------- | --------- |
+| `DATABASE_A_URL` | URL libpq do banco A (opcional) |
+| `DATABASE_B_URL` | URL libpq do banco B (opcional) |
+
+Exemplo: copie `.env.example` e ajuste.
 
 ## Executar o worker
 

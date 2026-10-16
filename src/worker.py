@@ -1,6 +1,6 @@
 import logging
-import os
 
+from src.db_url import resolve_database_a_url, resolve_database_b_url
 from src.definition import TABLE_ORDER, TABLES
 from src.orchestrator import (
     LISTEN_SQL,
@@ -88,7 +88,7 @@ def prepare(connection, tables=None):
 def connect_a(url=None):
     import psycopg2
     return psycopg2.connect(
-        url or os.environ["DATABASE_A_URL"],
+        resolve_database_a_url(url),
         application_name=APPLICATION_NAME,
     )
 
@@ -96,7 +96,7 @@ def connect_a(url=None):
 def connect_b(url=None):
     import psycopg2
     return psycopg2.connect(
-        url or os.environ["DATABASE_B_URL"],
+        resolve_database_b_url(url),
         application_name=APPLICATION_NAME,
     )
 
