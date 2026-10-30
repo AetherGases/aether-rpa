@@ -222,7 +222,7 @@ class PermissionB:
     id: int
     name: str
     description: str | None
-    url: str
+    pattern: str
     created_at: datetime
     updated_at: datetime | None
 
@@ -457,8 +457,11 @@ TABLES = {
         select_a=(
             "SELECT id, name, description, url, created_at, updated_at FROM permissions"
         ),
-        select_b="SELECT id, name, description, url, created_at, updated_at FROM permission",
-        field_map={},
+        select_b=(
+            "SELECT id, name, description, pattern, created_at, updated_at "
+            "FROM permission"
+        ),
+        field_map={"url": "pattern"},
         table_name_a="permissions",
         table_name_b="permission",
         pk_a=("id",),

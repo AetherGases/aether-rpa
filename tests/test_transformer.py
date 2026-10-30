@@ -17,6 +17,10 @@ from src.definition import (
     EnterpriseB,
     EnterpriseTableA,
     EnterpriseTableB,
+    PermissionA,
+    PermissionB,
+    PermissionTableA,
+    PermissionTableB,
     PermissionGroupA,
     PermissionGroupB,
     PermissionGroupTableA,
@@ -371,6 +375,63 @@ def test_transform_to_a_permission_groups_remaps_description_and_enterprise() ->
                 name="admin",
                 created_at=CREATED_AT,
                 company_id=3,
+            )
+        ]
+    )
+
+
+PERMISSION_COLUMNS_A = [
+    "id",
+    "name",
+    "description",
+    "url",
+    "created_at",
+    "updated_at",
+]
+PERMISSION_COLUMNS_B = [
+    "id",
+    "name",
+    "description",
+    "pattern",
+    "created_at",
+    "updated_at",
+]
+PERMISSION_ROW = (1, "read", None, "/r", CREATED_AT, None)
+
+
+def test_transform_to_b_permissions_remaps_url_to_pattern() -> None:
+    connection, _cursor = fake_connection(PERMISSION_COLUMNS_A, [PERMISSION_ROW])
+
+    result = transform_to_b(connection, "permissions")
+
+    assert result == PermissionTableB(
+        registers=[
+            PermissionB(
+                id=1,
+                name="read",
+                description=None,
+                pattern="/r",
+                created_at=CREATED_AT,
+                updated_at=None,
+            )
+        ]
+    )
+
+
+def test_transform_to_a_permissions_remaps_pattern_to_url() -> None:
+    connection, _cursor = fake_connection(PERMISSION_COLUMNS_B, [PERMISSION_ROW])
+
+    result = transform_to_a(connection, "permissions")
+
+    assert result == PermissionTableA(
+        registers=[
+            PermissionA(
+                id=1,
+                name="read",
+                description=None,
+                url="/r",
+                created_at=CREATED_AT,
+                updated_at=None,
             )
         ]
     )
