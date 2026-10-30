@@ -101,6 +101,10 @@ def test_divergent_field_maps_and_names() -> None:
         "permission_id": "id_permission",
         "permission_group_id": "id_permission_group",
     }
+    assert TABLES["permissions"].field_map == {"url": "pattern"}
+    assert "url" in TABLES["permissions"].select_a
+    assert "pattern" in TABLES["permissions"].select_b
+    assert "url" not in TABLES["permissions"].select_b
     assert TABLES["subscriptions"].field_map == {
         "plan_id": "id_plan",
         "company_id": "id_enterprise",
@@ -113,7 +117,6 @@ def test_identical_schema_tables_have_empty_field_map() -> None:
     for key in (
         "addresses",
         "storage_files",
-        "permissions",
         "plans",
     ):
         assert TABLES[key].field_map == {}
@@ -240,7 +243,7 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
         id=1,
         name="read",
         description=None,
-        url="/r",
+        pattern="/r",
         created_at=CREATED_AT,
         updated_at=None,
     )
@@ -332,7 +335,7 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
     assert department_a.unit_id == department_b.id_unit == 1
     assert storage_a.path == storage_b.path == "/a"
     assert group_a.name == group_b.description
-    assert permission_a.url == permission_b.url
+    assert permission_a.url == permission_b.pattern
     assert pgp_a.permission_id == pgp_b.id_permission == 1
     assert employee_a.sector_id is employee_b.id_department is None
     assert employee_a.permission_group_id == employee_b.id_permission_group == 2

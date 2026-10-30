@@ -91,9 +91,15 @@ Artefato de origem: `new_second_year_database.sql` (congelado). Tabelas abaixo c
 | `id`          | `SERIAL`       | PK                          |
 | `name`        | `VARCHAR(150)` | NOT NULL                    |
 | `description` | `VARCHAR(150)` |                             |
-| `url`         | `VARCHAR(50)`  | NOT NULL                    |
+| `pattern`     | `VARCHAR(150)` | NOT NULL, UNIQUE            |
 | `created_at`  | `TIMESTAMP`    | DEFAULT `current_timestamp` |
 | `updated_at`  | `TIMESTAMP`    |                             |
+
+### Constraints adicionais
+
+| Constraint                        | Regra                    |
+| --------------------------------- | ------------------------ |
+| `ck_permission_pattern_not_empty` | CHECK (btrim(`pattern`) <> '') |
 
 ## `permission_group_permission`
 
