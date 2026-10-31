@@ -15,6 +15,8 @@ def _set_postgres_env(monkeypatch) -> None:
     monkeypatch.setenv("POSTGRES_SSLMODE", "require")
     monkeypatch.setenv("POSTGRES_DB_FIRST_YEAR", "aether_first")
     monkeypatch.setenv("POSTGRES_DB", "aether_second")
+    monkeypatch.setenv("RPA_POSTGRES_USER", "rpa")
+    monkeypatch.setenv("RPA_POSTGRES_PASSWORD", "rpa@pass")
 
 
 def test_build_postgres_url_encodes_credentials_and_appends_sslmode(monkeypatch) -> None:
@@ -52,11 +54,14 @@ def test_resolve_database_a_url_uses_legacy_env_when_set(monkeypatch) -> None:
     assert resolve_database_a_url() == "postgresql://legacy-a"
 
 
-def test_resolve_database_a_url_builds_from_postgres_env(monkeypatch) -> None:
+def test_resolve_database_a_url_builds_with_rpa_credentials(monkeypatch) -> None:
     _set_postgres_env(monkeypatch)
     monkeypatch.delenv("DATABASE_A_URL", raising=False)
 
-    assert resolve_database_a_url() == build_postgres_url("aether_first")
+    assert (
+        resolve_database_a_url()
+        == "postgresql://rpa:rpa%40pass@db.example.com:5432/aether_first?sslmode=require"
+    )
 
 
 def test_resolve_database_b_url_builds_from_postgres_db(monkeypatch) -> None:
