@@ -384,7 +384,7 @@ PERMISSION_COLUMNS_A = [
     "id",
     "name",
     "description",
-    "url",
+    "pattern",
     "created_at",
     "updated_at",
 ]
@@ -399,7 +399,7 @@ PERMISSION_COLUMNS_B = [
 PERMISSION_ROW = (1, "read", None, "/r", CREATED_AT, None)
 
 
-def test_transform_to_b_permissions_remaps_url_to_pattern() -> None:
+def test_transform_to_b_permissions_copies_pattern() -> None:
     connection, _cursor = fake_connection(PERMISSION_COLUMNS_A, [PERMISSION_ROW])
 
     result = transform_to_b(connection, "permissions")
@@ -418,7 +418,7 @@ def test_transform_to_b_permissions_remaps_url_to_pattern() -> None:
     )
 
 
-def test_transform_to_a_permissions_remaps_pattern_to_url() -> None:
+def test_transform_to_a_permissions_copies_pattern() -> None:
     connection, _cursor = fake_connection(PERMISSION_COLUMNS_B, [PERMISSION_ROW])
 
     result = transform_to_a(connection, "permissions")
@@ -429,7 +429,7 @@ def test_transform_to_a_permissions_remaps_pattern_to_url() -> None:
                 id=1,
                 name="read",
                 description=None,
-                url="/r",
+                pattern="/r",
                 created_at=CREATED_AT,
                 updated_at=None,
             )

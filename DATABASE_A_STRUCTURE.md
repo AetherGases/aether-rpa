@@ -105,7 +105,7 @@ Artefato de origem: `new_first_year_database.sql`. Tabelas abaixo cobrem o contr
 | `id`          | `SERIAL`       | PK                          |
 | `name`        | `VARCHAR(100)` | NOT NULL                    |
 | `description` | `VARCHAR(255)` |                             |
-| `url`         | `VARCHAR(50)`  | NOT NULL                    |
+| `pattern`     | `VARCHAR(150)` | NOT NULL, UNIQUE            |
 | `is_active`   | `BOOLEAN`      | DEFAULT `TRUE` (só A)       |
 | `created_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 | `updated_at`  | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
