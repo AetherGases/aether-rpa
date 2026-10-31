@@ -3,128 +3,21 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from src.definition import TABLE_ORDER, TABLES
 from src.orchestrator import LISTEN_SQL
 from src.worker import (
-    SOURCE_TABLES,
-    SOURCE_TABLES_B,
     connect_a,
     connect_b,
     main,
-    prepare,
     run,
 )
 from tests.fake_db import fake_connection
 
 APPLICATION_NAME = "aether-rpa"
-SKIP_SETTING = "current_setting('application_name', true)"
 
 
-def _prepare_fn(prepared):
-    def prepare_fn(conn, tables=None):
-        prepared.append((conn, tables))
-
-    return prepare_fn
-
-
-def test_prepare_creates_event_table_functions_and_triggers() -> None:
-    connection, cursor = fake_connection([], [])
-
-    prepare(connection)
-
-    scripts = [call.args[0] for call in cursor.execute.call_args_list]
-    joined = "\n".join(scripts)
-    assert "CREATE TABLE IF NOT EXISTS rpa_outbox" in joined
-    assert "row_pk JSONB" in joined
-    assert "aether_rpa_enqueue_write" in joined
-    assert "aether_rpa_enqueue_delete" in joined
-    assert "to_jsonb(OLD)" in joined
-    assert "pg_notify('aether_rpa'" in joined
-    for table in SOURCE_TABLES:
-        assert f"ON {table}" in joined
-        assert f"aether_rpa_write_{table}" in joined
-        assert f"aether_rpa_delete_{table}" in joined
-    assert "AFTER INSERT OR UPDATE" in joined
-    assert "AFTER DELETE" in joined
-    assert SOURCE_TABLES == (
-        "addresses",
-        "storage_files",
-        "permissions",
-        "plans",
-        "companies",
-        "permission_groups",
-        "units",
-        "sectors",
-        "permission_group_permissions",
-        "employees",
-        "subscriptions",
-    )
-
-
-def test_prepare_sql_functions_skip_rpa_application_name() -> None:
-    connection, cursor = fake_connection([], [])
-
-    prepare(connection)
-
-    scripts = [call.args[0] for call in cursor.execute.call_args_list]
-    write_fn = next(
-        sql for sql in scripts if "FUNCTION aether_rpa_enqueue_write" in sql
-    )
-    delete_fn = next(
-        sql for sql in scripts if "FUNCTION aether_rpa_enqueue_delete" in sql
-    )
-    assert SKIP_SETTING in write_fn
-    assert f"'{APPLICATION_NAME}'" in write_fn
-    assert "RETURN NULL" in write_fn
-    assert SKIP_SETTING in delete_fn
-    assert f"'{APPLICATION_NAME}'" in delete_fn
-    assert "RETURN OLD" in delete_fn
-
-
-def test_prepare_is_safe_to_run_twice() -> None:
-    connection, cursor = fake_connection([], [])
-    prepare(connection)
-    first = cursor.execute.call_count
-    prepare(connection)
-    assert cursor.execute.call_count == first * 2
-
-
-def test_source_tables_b_maps_table_order() -> None:
-    assert SOURCE_TABLES_B == tuple(TABLES[key].table_name_b for key in TABLE_ORDER)
-    assert SOURCE_TABLES_B == (
-        "address",
-        "storage_file",
-        "permission",
-        "plan",
-        "enterprise",
-        "permission_group",
-        "unit",
-        "department",
-        "permission_group_permission",
-        "employee",
-        "plan_subscription",
-    )
-
-
-def test_prepare_installs_triggers_on_b_table_names() -> None:
-    connection, cursor = fake_connection([], [])
-
-    prepare(connection, SOURCE_TABLES_B)
-
-    scripts = [call.args[0] for call in cursor.execute.call_args_list]
-    joined = "\n".join(scripts)
-    for table in SOURCE_TABLES_B:
-        assert f"ON {table}" in joined
-        assert f"aether_rpa_write_{table}" in joined
-        assert f"aether_rpa_delete_{table}" in joined
-    assert "ON companies" not in joined
-    assert "ON enterprise" in joined
-
-
-def test_run_prepares_both_boot_drains_listen_and_commits_dest_first() -> None:
+def test_run_boot_drains_listen_and_commits_dest_first() -> None:
     connection_a = MagicMock(name="a")
     connection_b = MagicMock(name="b")
-    prepared = []
     drained = []
     listened = []
     commits = []
@@ -134,25 +27,20 @@ def test_run_prepares_both_boot_drains_listen_and_commits_dest_first() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=_prepare_fn(prepared),
         listen_fn=lambda a, b: listened.append((a, b)),
         drain_fn=lambda a, b: drained.append(("a_to_b", a, b)),
         drain_b_to_a_fn=lambda b, a: drained.append(("b_to_a", b, a)),
         forever=False,
     )
 
-    assert prepared == [
-        (connection_a, None),
-        (connection_b, SOURCE_TABLES_B),
-    ]
     assert drained == [
         ("a_to_b", connection_a, connection_b),
         ("b_to_a", connection_b, connection_a),
     ]
     assert listened == [(connection_a, connection_b)]
-    assert commits == ["a", "b", "b", "a", "a", "b", "b", "a"]
-    assert connection_a.commit.call_count == 4
-    assert connection_b.commit.call_count == 4
+    assert commits == ["b", "a", "a", "b", "b", "a"]
+    assert connection_a.commit.call_count == 3
+    assert connection_b.commit.call_count == 3
     connection_a.close.assert_called()
     connection_b.close.assert_called()
 
@@ -165,7 +53,6 @@ def test_run_skips_listen_fn_when_forever() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=lambda conn, tables=None: None,
         listen_fn=lambda a, b: listened.append((a, b)),
         drain_fn=lambda a, b: None,
         drain_b_to_a_fn=lambda b, a: None,
@@ -207,7 +94,6 @@ def test_run_forever_one_notify_via_select() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=lambda conn, tables=None: None,
         listen_fn=lambda a, b: None,
         drain_fn=lambda a, b: drained.append(("a_to_b", a, b)),
         drain_b_to_a_fn=lambda b, a: drained.append(("b_to_a", b, a)),
@@ -248,7 +134,6 @@ def test_run_forever_notify_on_b_commits_a_then_b() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=lambda conn, tables=None: None,
         listen_fn=lambda a, b: None,
         drain_fn=lambda a, b: drained.append(("a_to_b", a, b)),
         drain_b_to_a_fn=lambda b, a: drained.append(("b_to_a", b, a)),
@@ -270,7 +155,6 @@ def test_run_without_listen_fn_still_boot_drains() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=lambda conn, tables=None: None,
         listen_fn=None,
         drain_fn=lambda a, b: drained.append("a_to_b"),
         drain_b_to_a_fn=lambda b, a: drained.append("b_to_a"),
@@ -297,7 +181,6 @@ def test_run_forever_clears_nothing_when_connection_has_no_notifies() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=lambda conn, tables=None: None,
         listen_fn=None,
         drain_fn=lambda a, b: None,
         drain_b_to_a_fn=lambda b, a: None,
@@ -318,7 +201,6 @@ def test_run_retries_drain_once_then_commits() -> None:
     run(
         connection_a,
         connection_b,
-        prepare_fn=lambda conn, tables=None: None,
         listen_fn=lambda a, b: None,
         drain_fn=drain_fn,
         drain_b_to_a_fn=lambda b, a: None,
@@ -344,7 +226,6 @@ def test_run_rolls_back_logs_and_reraises_when_drain_keeps_failing(caplog) -> No
             run(
                 connection_a,
                 connection_b,
-                prepare_fn=lambda conn, tables=None: None,
                 listen_fn=lambda a, b: None,
                 drain_fn=drain_fn,
                 drain_b_to_a_fn=lambda b, a: None,
@@ -363,23 +244,17 @@ def test_run_rolls_back_logs_and_reraises_when_drain_keeps_failing(caplog) -> No
 def test_main_creates_connections_injects_and_closes() -> None:
     connection_a = MagicMock(name="a")
     connection_b = MagicMock(name="b")
-    prepared = []
     listened = []
 
     main(
         connect_a_fn=lambda: connection_a,
         connect_b_fn=lambda: connection_b,
-        prepare_fn=_prepare_fn(prepared),
         listen_fn=lambda a, b: listened.append((a, b)),
         drain_fn=lambda a, b: None,
         drain_b_to_a_fn=lambda b, a: None,
         forever=False,
     )
 
-    assert prepared == [
-        (connection_a, None),
-        (connection_b, SOURCE_TABLES_B),
-    ]
     assert listened == [(connection_a, connection_b)]
     connection_a.close.assert_called()
     connection_b.close.assert_called()

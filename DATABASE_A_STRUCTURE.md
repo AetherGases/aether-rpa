@@ -183,7 +183,7 @@ Artefato de origem: `new_first_year_database.sql`. Tabelas abaixo cobrem o contr
 | `created_at`   | `TIMESTAMP`    | DEFAULT `CURRENT_TIMESTAMP` |
 | `processed_at` | `TIMESTAMP`    |                             |
 
-`src/worker.py` (`prepare`) cria a tabela e os triggers se não existirem. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Triggers nas 11 tabelas de negócio do contrato: `addresses`, `storage_files`, `permission_groups`, `permissions`, `plans`, `companies`, `units`, `sectors`, `permission_group_permissions`, `employees`, `subscriptions`. Só banco A. Conexões do RPA usam `application_name=aether-rpa` e os triggers ignoram esses writes.
+O script `init-postgres/13-rpa-outbox-triggers.sql` do `aether-toolskit` cria a tabela, as funções e os triggers, executado pelo owner do banco. O RPA não executa DDL. `INSERT`/`UPDATE`: `FOR EACH STATEMENT`. `DELETE`: `FOR EACH ROW` com `row_pk`. Canal `aether_rpa`. Triggers nas 11 tabelas de negócio do contrato: `addresses`, `storage_files`, `permission_groups`, `permissions`, `plans`, `companies`, `units`, `sectors`, `permission_group_permissions`, `employees`, `subscriptions`. Só banco A. Conexões do RPA usam `application_name=aether-rpa` e os triggers ignoram esses writes.
 
 # Relacionamentos (contrato RPA)
 
@@ -205,4 +205,4 @@ Artefato de origem: `new_first_year_database.sql`. Tabelas abaixo cobrem o contr
 
 # Índices
 
-Índices adicionais podem ser criados pelo worker em `prepare`. Os FKs acima definem os joins principais do contrato.
+Os FKs acima definem os joins principais do contrato.
