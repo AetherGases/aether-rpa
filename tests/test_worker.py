@@ -417,11 +417,13 @@ def test_connect_a_and_connect_b_use_postgres_env_when_no_legacy_urls(
     monkeypatch.setenv("POSTGRES_SSLMODE", "require")
     monkeypatch.setenv("POSTGRES_DB_FIRST_YEAR", "year_one")
     monkeypatch.setenv("POSTGRES_DB", "year_two")
+    monkeypatch.setenv("RPA_POSTGRES_USER", "rpa")
+    monkeypatch.setenv("RPA_POSTGRES_PASSWORD", "rp")
 
     assert connect_a() == "conn-a"
     assert connect_b() == "conn-b"
     fake.connect.assert_any_call(
-        "postgresql://u:p@cluster:5432/year_one?sslmode=require",
+        "postgresql://rpa:rp@cluster:5432/year_one?sslmode=require",
         application_name=APPLICATION_NAME,
     )
     fake.connect.assert_any_call(

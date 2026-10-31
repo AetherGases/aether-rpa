@@ -19,8 +19,10 @@ Em produção, A e B costumam estar no **mesmo cluster PostgreSQL**, com credenc
 
 | Variável | Descrição |
 | -------- | --------- |
-| `POSTGRES_USER` | Usuário |
-| `POSTGRES_PASSWORD` | Senha |
+| `POSTGRES_USER` | Usuário (banco **B**) |
+| `POSTGRES_PASSWORD` | Senha (banco **B**) |
+| `RPA_POSTGRES_USER` | Usuário dedicado do RPA no banco **A** (`rpa_aether`) |
+| `RPA_POSTGRES_PASSWORD` | Senha do usuário dedicado do RPA no banco **A** |
 | `POSTGRES_HOST` | Host do cluster |
 | `POSTGRES_PORT` | Porta (ex.: `5432`) |
 | `POSTGRES_SSLMODE` | Modo SSL libpq (ex.: `require`) |

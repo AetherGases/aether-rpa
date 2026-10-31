@@ -8,7 +8,8 @@ COPY src ./src
 
 # Conexão PostgreSQL (mesmo cluster, dois databases). Credenciais vêm do
 # ambiente em runtime (GitHub Environments / Secrets no EKS), não da imagem:
-#   POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_HOST,
+#   POSTGRES_USER, POSTGRES_PASSWORD (banco B), POSTGRES_HOST,
+#   RPA_POSTGRES_USER, RPA_POSTGRES_PASSWORD (banco A),
 #   POSTGRES_DB_FIRST_YEAR (banco A), POSTGRES_DB (banco B)
 # Opcionais com default na imagem:
 ENV POSTGRES_PORT=5432

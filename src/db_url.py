@@ -2,9 +2,9 @@ import os
 from urllib.parse import quote_plus
 
 
-def build_postgres_url(dbname: str) -> str:
-    user = os.environ["POSTGRES_USER"]
-    password = os.environ["POSTGRES_PASSWORD"]
+def build_postgres_url(dbname: str, user=None, password=None) -> str:
+    user = user or os.environ["POSTGRES_USER"]
+    password = password or os.environ["POSTGRES_PASSWORD"]
     host = os.environ["POSTGRES_HOST"]
     port = os.environ["POSTGRES_PORT"]
     sslmode = os.environ.get("POSTGRES_SSLMODE", "require")
@@ -23,7 +23,12 @@ def resolve_database_a_url(url=None) -> str:
     legacy = os.environ.get("DATABASE_A_URL")
     if legacy:
         return legacy
-    return build_postgres_url(os.environ["POSTGRES_DB_FIRST_YEAR"])
+    # The first-year database is accessed through its dedicated RPA role.
+    return build_postgres_url(
+        os.environ["POSTGRES_DB_FIRST_YEAR"],
+        os.environ["RPA_POSTGRES_USER"],
+        os.environ["RPA_POSTGRES_PASSWORD"],
+    )
 
 
 def resolve_database_b_url(url=None) -> str:
