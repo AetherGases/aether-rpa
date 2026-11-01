@@ -1,10 +1,11 @@
 import logging
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, call
 
 import pytest
 
 from src.orchestrator import LISTEN_SQL
 from src.worker import (
+    _listen,
     connect_a,
     connect_b,
     main,
@@ -43,6 +44,18 @@ def test_run_boot_drains_listen_and_commits_dest_first() -> None:
     assert connection_b.commit.call_count == 3
     connection_a.close.assert_called()
     connection_b.close.assert_called()
+
+
+def test_listen_commits_so_listen_takes_effect() -> None:
+    connection = MagicMock()
+
+    _listen(connection)
+
+    assert connection.mock_calls == [
+        call.cursor(),
+        call.cursor().execute(LISTEN_SQL),
+        call.commit(),
+    ]
 
 
 def test_run_skips_listen_fn_when_forever() -> None:
@@ -285,6 +298,8 @@ def test_connect_a_and_connect_b_use_postgres_env_when_no_legacy_urls(
     monkeypatch.setitem(sys.modules, "psycopg2", fake)
     monkeypatch.delenv("DATABASE_A_URL", raising=False)
     monkeypatch.delenv("DATABASE_B_URL", raising=False)
+    monkeypatch.delenv("RPA_DATABASE_A_URL", raising=False)
+    monkeypatch.delenv("RPA_DATABASE_B_URL", raising=False)
     monkeypatch.setenv("POSTGRES_USER", "u")
     monkeypatch.setenv("POSTGRES_PASSWORD", "p")
     monkeypatch.setenv("POSTGRES_HOST", "cluster")

@@ -56,6 +56,8 @@ def _replicate(drain_callable, source, dest):
 
 def _listen(connection):
     connection.cursor().execute(LISTEN_SQL)
+    # LISTEN only takes effect on commit; an open transaction is also killed by idle_in_transaction_session_timeout.
+    connection.commit()
 
 
 def _run_forever(
