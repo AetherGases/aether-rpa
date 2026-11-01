@@ -50,9 +50,10 @@ O processo é um **daemon de longa duração**: mantém conexões abertas com A 
 
 ### Ciclo de vida
 
-1. **Prepare (A e B)** — em cada banco, cria `rpa_outbox`, funções PL/pgSQL e triggers nas tabelas sincronizadas, se ainda não existirem.
-2. **Drain inicial** — esvazia pendências (`processed_at IS NULL`) do outbox de A → B e de B → A, respeitando ordem de FK (pais → filhos no insert/update; filhos → pais no delete).
-3. **Listen** — `LISTEN aether_rpa` nos dois bancos; a cada `NOTIFY`, drena o outbox da origem correspondente e replica para o destino.
+Pré-requisito: `rpa_outbox`, funções PL/pgSQL e triggers já instalados nos dois bancos pelo script `init-postgres/13-rpa-outbox-triggers.sql` do `aether-toolskit` (executado pelo owner do banco). O RPA não executa DDL.
+
+1. **Drain inicial** — esvazia pendências (`processed_at IS NULL`) do outbox de A → B e de B → A, respeitando ordem de FK (pais → filhos no insert/update; filhos → pais no delete).
+2. **Listen** — `LISTEN aether_rpa` nos dois bancos; a cada `NOTIFY`, drena o outbox da origem correspondente e replica para o destino.
 
 Detalhes das tabelas e triggers: seção **RPA** em `DATABASE_A_STRUCTURE.md` (banco A) e `DATABASE_B_SCTRUCTURE.md` (banco B).
 
@@ -73,7 +74,7 @@ Insert no destino usa **UPSERT** (`INSERT … ON CONFLICT` na PK) para re-sync i
 | `src/transformer.py` | Conversão de colunas A↔B |
 | `src/driver.py` | Insert/update/delete no destino |
 | `src/orchestrator.py` | Drain do outbox + `LISTEN` |
-| `src/worker.py` | Prepare DDL, conexões, entrypoint |
+| `src/worker.py` | Conexões, entrypoint |
 
 ## Testes
 

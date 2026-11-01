@@ -1,7 +1,6 @@
 import logging
 
 from src.db_url import resolve_database_a_url, resolve_database_b_url
-from src.definition import TABLE_ORDER, TABLES
 from src.orchestrator import (
     LISTEN_SQL,
     drain,
@@ -13,76 +12,6 @@ from src.orchestrator import (
 
 LOGGER = logging.getLogger("aether.rpa")
 APPLICATION_NAME = "aether-rpa"
-SOURCE_TABLES = tuple(TABLE_ORDER)
-SOURCE_TABLES_B = tuple(TABLES[key].table_name_b for key in TABLE_ORDER)
-
-CREATE_TABLE = """
-CREATE TABLE IF NOT EXISTS rpa_outbox (
-    id SERIAL PRIMARY KEY,
-    table_name VARCHAR(150) NOT NULL,
-    operation VARCHAR(10) NOT NULL,
-    row_pk JSONB,
-    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    processed_at TIMESTAMP
-)
-"""
-
-CREATE_WRITE_FN = """
-CREATE OR REPLACE FUNCTION aether_rpa_enqueue_write() RETURNS trigger AS $$
-BEGIN
-    IF current_setting('application_name', true) = 'aether-rpa' THEN
-        RETURN NULL;
-    END IF;
-    INSERT INTO rpa_outbox (table_name, operation)
-    VALUES (TG_TABLE_NAME, lower(TG_OP));
-    PERFORM pg_notify('aether_rpa', TG_TABLE_NAME);
-    RETURN NULL;
-END;
-$$ LANGUAGE plpgsql
-"""
-
-CREATE_DELETE_FN = """
-CREATE OR REPLACE FUNCTION aether_rpa_enqueue_delete() RETURNS trigger AS $$
-BEGIN
-    IF current_setting('application_name', true) = 'aether-rpa' THEN
-        RETURN OLD;
-    END IF;
-    INSERT INTO rpa_outbox (table_name, operation, row_pk)
-    VALUES (TG_TABLE_NAME, 'delete', to_jsonb(OLD));
-    PERFORM pg_notify('aether_rpa', TG_TABLE_NAME);
-    RETURN OLD;
-END;
-$$ LANGUAGE plpgsql
-"""
-
-
-def _trigger_statements(table):
-    return [
-        f"DROP TRIGGER IF EXISTS aether_rpa_write_{table} ON {table}",
-        (
-            f"CREATE TRIGGER aether_rpa_write_{table} "
-            f"AFTER INSERT OR UPDATE ON {table} "
-            f"FOR EACH STATEMENT EXECUTE FUNCTION aether_rpa_enqueue_write()"
-        ),
-        f"DROP TRIGGER IF EXISTS aether_rpa_delete_{table} ON {table}",
-        (
-            f"CREATE TRIGGER aether_rpa_delete_{table} "
-            f"AFTER DELETE ON {table} "
-            f"FOR EACH ROW EXECUTE FUNCTION aether_rpa_enqueue_delete()"
-        ),
-    ]
-
-
-def prepare(connection, tables=None):
-    if tables is None:
-        tables = SOURCE_TABLES
-    cursor = connection.cursor()
-    cursor.execute(CREATE_TABLE)
-    cursor.execute(CREATE_WRITE_FN)
-    cursor.execute(CREATE_DELETE_FN)
-    for table in tables:
-        for statement in _trigger_statements(table):
-            cursor.execute(statement)
 
 
 def connect_a(url=None):
@@ -160,7 +89,6 @@ def _run_forever(
 def run(
     connection_a,
     connection_b,
-    prepare_fn=prepare,
     listen_fn=listen_once,
     drain_fn=drain,
     drain_b_to_a_fn=drain_b_to_a,
@@ -175,10 +103,6 @@ def run(
     if should_stop is None:
         should_stop = lambda: False
     try:
-        prepare_fn(connection_a)
-        connection_a.commit()
-        prepare_fn(connection_b, SOURCE_TABLES_B)
-        connection_b.commit()
         _replicate(drain_fn, connection_a, connection_b)
         _replicate(drain_b_to_a_fn, connection_b, connection_a)
         if forever:
@@ -205,7 +129,6 @@ def run(
 def main(
     connect_a_fn=connect_a,
     connect_b_fn=connect_b,
-    prepare_fn=prepare,
     listen_fn=listen_once,
     drain_fn=drain,
     drain_b_to_a_fn=drain_b_to_a,
@@ -223,7 +146,6 @@ def main(
         run(
             connection_a,
             connection_b,
-            prepare_fn=prepare_fn,
             listen_fn=listen_fn,
             drain_fn=drain_fn,
             drain_b_to_a_fn=drain_b_to_a_fn,
