@@ -35,6 +35,8 @@ Para desenvolvimento local, ainda é possível definir URLs completas (têm prec
 
 | Variável | Descrição |
 | -------- | --------- |
+| `RPA_DATABASE_A_URL` | URL libpq do banco A no host direto, sem pooler (opcional; tem prioridade sobre `DATABASE_A_URL`) |
+| `RPA_DATABASE_B_URL` | URL libpq do banco B no host direto, sem pooler (opcional; tem prioridade sobre `DATABASE_B_URL`) |
 | `DATABASE_A_URL` | URL libpq do banco A (opcional) |
 | `DATABASE_B_URL` | URL libpq do banco B (opcional) |
 

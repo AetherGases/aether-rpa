@@ -20,7 +20,8 @@ def build_postgres_url(dbname: str, user=None, password=None) -> str:
 def resolve_database_a_url(url=None) -> str:
     if url:
         return url
-    legacy = os.environ.get("DATABASE_A_URL")
+    # RPA_DATABASE_*_URL point to the direct (non-pooler) host: LISTEN does not survive a transaction-mode pooler.
+    legacy = os.environ.get("RPA_DATABASE_A_URL") or os.environ.get("DATABASE_A_URL")
     if legacy:
         return legacy
     # The first-year database is accessed through its dedicated RPA role.
@@ -34,7 +35,7 @@ def resolve_database_a_url(url=None) -> str:
 def resolve_database_b_url(url=None) -> str:
     if url:
         return url
-    legacy = os.environ.get("DATABASE_B_URL")
+    legacy = os.environ.get("RPA_DATABASE_B_URL") or os.environ.get("DATABASE_B_URL")
     if legacy:
         return legacy
     return build_postgres_url(os.environ["POSTGRES_DB"])

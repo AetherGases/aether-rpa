@@ -17,6 +17,8 @@ def _set_postgres_env(monkeypatch) -> None:
     monkeypatch.setenv("POSTGRES_DB", "aether_second")
     monkeypatch.setenv("RPA_POSTGRES_USER", "rpa")
     monkeypatch.setenv("RPA_POSTGRES_PASSWORD", "rpa@pass")
+    monkeypatch.delenv("RPA_DATABASE_A_URL", raising=False)
+    monkeypatch.delenv("RPA_DATABASE_B_URL", raising=False)
 
 
 def test_build_postgres_url_encodes_credentials_and_appends_sslmode(monkeypatch) -> None:
@@ -76,6 +78,22 @@ def test_resolve_database_b_url_uses_legacy_env_when_set(monkeypatch) -> None:
     monkeypatch.setenv("DATABASE_B_URL", "postgresql://legacy-b")
 
     assert resolve_database_b_url() == "postgresql://legacy-b"
+
+
+def test_resolve_database_a_url_prefers_rpa_direct_url(monkeypatch) -> None:
+    _set_postgres_env(monkeypatch)
+    monkeypatch.setenv("RPA_DATABASE_A_URL", "postgresql://direct-a")
+    monkeypatch.setenv("DATABASE_A_URL", "postgresql://legacy-a")
+
+    assert resolve_database_a_url() == "postgresql://direct-a"
+
+
+def test_resolve_database_b_url_prefers_rpa_direct_url(monkeypatch) -> None:
+    _set_postgres_env(monkeypatch)
+    monkeypatch.setenv("RPA_DATABASE_B_URL", "postgresql://direct-b")
+    monkeypatch.setenv("DATABASE_B_URL", "postgresql://legacy-b")
+
+    assert resolve_database_b_url() == "postgresql://direct-b"
 
 
 def test_build_postgres_url_requires_core_env(monkeypatch) -> None:
