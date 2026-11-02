@@ -1,6 +1,22 @@
 # Aether RPA
 
-ETL bidirecional em Python entre o **banco A** (cadastral) e o **banco B** (core), ambos PostgreSQL. O worker replica alterações detectadas via outbox + `LISTEN`/`NOTIFY`.
+Worker de ETL bidirecional do [Aether](https://github.com/AetherGases), em Python, entre o **banco A** (`dbAether1Year`, cadastral/CRUD) e o **banco B** (`dbAether2Year`, core dos microsserviços), ambos PostgreSQL. O worker replica alterações detectadas via outbox + `LISTEN`/`NOTIFY`.
+
+## Por que existe
+
+O Aether usa dois bancos por regra de negócio: o [aether-web-administrative](https://github.com/AetherGases/aether-web-administrative) escreve o cadastro no banco A e os microsserviços Java ([ms-auth](https://github.com/AetherGases/aether-ms-auth), [ms-inventory](https://github.com/AetherGases/aether-ms-inventory)) trabalham no banco B. O RPA faz os dois enxergarem o mesmo cadastro, nos dois sentidos, sem chamadas HTTP entre os sistemas.
+
+```mermaid
+flowchart LR
+  ADM[web-administrative] --> A[(Banco A)]
+  A -- trigger grava em rpa_outbox<br/>e NOTIFY aether_rpa --> RPA((aether-rpa))
+  RPA -- UPSERT --> B[(Banco B)]
+  B -- trigger + NOTIFY --> RPA
+  RPA -- UPSERT --> A
+  B --> MS[microsserviços]
+```
+
+**Tabelas replicadas** (em ordem de chave estrangeira): `addresses`, `storage_files`, `permissions`, `plans`, `companies`, `permission_groups`, `units`, `sectors`, `permission_group_permissions`, `employees` e `subscriptions`.
 
 ## Requisitos
 
@@ -77,6 +93,22 @@ Insert no destino usa **UPSERT** (`INSERT … ON CONFLICT` na PK) para re-sync i
 | `src/driver.py` | Insert/update/delete no destino |
 | `src/orchestrator.py` | Drain do outbox + `LISTEN` |
 | `src/worker.py` | Conexões, entrypoint |
+
+## Pontos de atenção
+
+- **Use o host direto do Postgres (sem pooler).** `LISTEN/NOTIFY` não funciona atrás de um pooler em modo transação (caso do Neon). Por isso existem `RPA_DATABASE_A_URL` e `RPA_DATABASE_B_URL`, que têm prioridade sobre as demais.
+- **`LISTEN` só vale após o commit.** O worker faz `commit` logo depois do `LISTEN`, porque o Neon encerra conexões ociosas "idle in transaction" após 5 minutos.
+- **O RPA não executa DDL.** Outbox, funções e triggers são instalados pelo dono do banco com o `13-rpa-outbox-triggers.sql` do [aether-toolskit](https://github.com/AetherGases/aether-toolskit). A lista de tabelas de lá precisa acompanhar `TABLE_ORDER` e `table_name_b` em `src/definition.py`.
+- **Diferenças A↔B tratadas no `transformer`:** o tipo de `installments` (booleano em A, inteiro em B), os status de funcionário (`ACTIVE`, `INACTIVE`, `IN_VACATION`) e o nome da tabela de permissões (`permissions` em A, `permission` em B).
+- Para o contrato de colunas de cada banco, veja `DATABASE_A_STRUCTURE.md`, `DATABASE_B_SCTRUCTURE.md` (sim, com esse nome) e `docs/specs/2026-09-25-alinhamento-schema-rpa.md`.
+
+## Contexto para agentes de IA
+
+`AGENTS.md` e `AGENT_NOTES/` guardam instruções e notas de memória usadas por assistentes de código neste repositório (TDD com 100% de cobertura, confirmar decisões com quem pede). Quem contribui sem assistente pode ignorá-los.
+
+## Deploy
+
+A imagem (`Dockerfile`, Python 3.11) não expõe porta: é um daemon. `POSTGRES_PORT` e `POSTGRES_SSLMODE` têm padrão na imagem e o restante vem do Secret `aether-env` no EKS. Publicar uma **release** dispara o deploy pelo workflow compartilhado da organização ([.github](https://github.com/AetherGases/.github)).
 
 ## Testes
 
