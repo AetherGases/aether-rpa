@@ -274,6 +274,9 @@ class EmployeeA:
     storage_file_id: int | None
     sector_id: int | None
     permission_group_id: int | None
+    # B only knows the employee through the department; these are derived there.
+    company_id: int | None = None
+    unit_id: int | None = None
 
 
 @dataclass
@@ -295,6 +298,9 @@ class EmployeeB:
     id_storage_file: int | None
     id_department: int | None
     id_permission_group: int | None
+    # Read from department/unit when copying to A; never written to B.
+    company_id: int | None = field(default=None, metadata={"derived": True})
+    unit_id: int | None = field(default=None, metadata={"derived": True})
 
 
 @dataclass
@@ -383,6 +389,55 @@ class TableSpec:
     pk_b: tuple[str, ...]
     enum_coercions_a: dict[str, type[Enum]] = field(default_factory=dict)
     enum_coercions_b: dict[str, type[Enum]] = field(default_factory=dict)
+    # Column used to restrict a select to the rows named by the outbox.
+    filter_a: str = "id"
+    filter_b: str = "id"
+    # B column -> max length: A texts longer than B accepts are cut (A keeps the full text).
+    truncate_b: dict[str, int] = field(default_factory=dict)
+    # Column -> SQL value used instead of EXCLUDED.<column> when the row already exists.
+    conflict_a: dict[str, str] = field(default_factory=dict)
+    conflict_b: dict[str, str] = field(default_factory=dict)
+
+
+def _keep_if_truncated(table: str, column: str, limit: int) -> str:
+    """Keep the full text in `table` when the incoming value is just its truncation."""
+    return (
+        f"CASE WHEN left({table}.{column}, {limit}) = EXCLUDED.{column} "
+        f"THEN {table}.{column} ELSE EXCLUDED.{column} END"
+    )
+
+
+def _keep_truncated_texts(table: str, truncate_b: dict[str, int]) -> dict[str, str]:
+    return {
+        column: _keep_if_truncated(table, column, limit)
+        for column, limit in truncate_b.items()
+    }
+
+
+# Must match transformer._address_number_a_to_b: first run of up to 9 digits, else 0.
+_ADDRESS_NUMBER_DIGITS = r"substring(addresses.number from '\d+')"
+_KEEP_ADDRESS_NUMBER = (
+    f"CASE WHEN (CASE WHEN length({_ADDRESS_NUMBER_DIGITS}) BETWEEN 1 AND 9 "
+    f"THEN ({_ADDRESS_NUMBER_DIGITS})::bigint::text ELSE '0' END) = EXCLUDED.number "
+    "THEN addresses.number ELSE EXCLUDED.number END"
+)
+# B keeps only the digits of the CNAE, A keeps the formatted text.
+_KEEP_FORMATTED_CNAE = (
+    r"CASE WHEN regexp_replace(units.cnae, '\D', '', 'g') = EXCLUDED.cnae "
+    "THEN units.cnae ELSE EXCLUDED.cnae END"
+)
+# A holds a boolean, B the number of installments: never shrink B's number to 1.
+_KEEP_INSTALLMENTS = (
+    "CASE WHEN EXCLUDED.installments > 0 AND plan_subscription.installments > 0 "
+    "THEN plan_subscription.installments ELSE EXCLUDED.installments END"
+)
+
+_ADDRESS_TRUNCATE = {"street": 150}
+_PERMISSION_TRUNCATE = {"description": 150}
+_PLAN_TRUNCATE = {"name": 50, "description": 150}
+_COMPANY_TRUNCATE = {"name": 150}
+_SECTOR_TRUNCATE = {"description": 150}
+_EMPLOYEE_TRUNCATE = {"name": 150}
 
 
 TABLE_ORDER = [
@@ -418,6 +473,11 @@ TABLES = {
         table_name_b="address",
         pk_a=("id",),
         pk_b=("id",),
+        truncate_b=_ADDRESS_TRUNCATE,
+        conflict_a={
+            **_keep_truncated_texts("addresses", _ADDRESS_TRUNCATE),
+            "number": _KEEP_ADDRESS_NUMBER,
+        },
     ),
     "storage_files": TableSpec(
         register_a=StorageFileA,
@@ -467,6 +527,8 @@ TABLES = {
         table_name_b="permission",
         pk_a=("id",),
         pk_b=("id",),
+        truncate_b=_PERMISSION_TRUNCATE,
+        conflict_a=_keep_truncated_texts("permissions", _PERMISSION_TRUNCATE),
     ),
     "plans": TableSpec(
         register_a=PlanA,
@@ -486,6 +548,8 @@ TABLES = {
         table_name_b="plan",
         pk_a=("id",),
         pk_b=("id",),
+        truncate_b=_PLAN_TRUNCATE,
+        conflict_a=_keep_truncated_texts("plans", _PLAN_TRUNCATE),
     ),
     "companies": TableSpec(
         register_a=EnterpriseA,
@@ -505,6 +569,8 @@ TABLES = {
         table_name_b="enterprise",
         pk_a=("id",),
         pk_b=("id",),
+        truncate_b=_COMPANY_TRUNCATE,
+        conflict_a=_keep_truncated_texts("companies", _COMPANY_TRUNCATE),
     ),
     "units": TableSpec(
         register_a=UnitA,
@@ -524,6 +590,7 @@ TABLES = {
         table_name_b="unit",
         pk_a=("id",),
         pk_b=("id",),
+        conflict_a={"cnae": _KEEP_FORMATTED_CNAE},
     ),
     "sectors": TableSpec(
         register_a=DepartmentA,
@@ -541,6 +608,8 @@ TABLES = {
         table_name_b="department",
         pk_a=("id",),
         pk_b=("id",),
+        truncate_b=_SECTOR_TRUNCATE,
+        conflict_a=_keep_truncated_texts("sectors", _SECTOR_TRUNCATE),
     ),
     "permission_group_permissions": TableSpec(
         register_a=PermissionGroupPermissionA,
@@ -569,15 +638,22 @@ TABLES = {
         register_b=EmployeeB,
         table_a=EmployeeTableA,
         table_b=EmployeeTableB,
+        # A deactivates an employee with is_active; B only has the status.
         select_a=(
-            "SELECT id, cpf, name, email, phone, password_hash, status, "
+            "SELECT id, cpf, name, email, phone, password_hash, "
+            "CASE WHEN is_active THEN status ELSE 'INACTIVE'::status_employee END AS status, "
             "created_at, updated_at, storage_file_id, sector_id, permission_group_id "
             "FROM employees"
         ),
+        # B has no company/unit on the employee: derive them from the department.
         select_b=(
-            "SELECT id, cpf, name, email, phone, password_hash, employee_status, "
-            "created_at, updated_at, id_storage_file, id_department, id_permission_group "
-            "FROM employee"
+            "SELECT e.id, e.cpf, e.name, e.email, e.phone, e.password_hash, "
+            "e.employee_status, e.created_at, e.updated_at, e.id_storage_file, "
+            "e.id_department, e.id_permission_group, "
+            "u.id_enterprise AS company_id, d.id_unit AS unit_id "
+            "FROM employee e "
+            "LEFT JOIN department d ON d.id = e.id_department "
+            "LEFT JOIN unit u ON u.id = d.id_unit"
         ),
         field_map={
             "status": "employee_status",
@@ -591,6 +667,13 @@ TABLES = {
         pk_b=("id",),
         enum_coercions_a={"status": StatusEmployee},
         enum_coercions_b={"employee_status": StatusEmployee},
+        filter_b="e.id",
+        truncate_b=_EMPLOYEE_TRUNCATE,
+        conflict_a={
+            **_keep_truncated_texts("employees", _EMPLOYEE_TRUNCATE),
+            "company_id": "COALESCE(EXCLUDED.company_id, employees.company_id)",
+            "unit_id": "COALESCE(EXCLUDED.unit_id, employees.unit_id)",
+        },
     ),
     "subscriptions": TableSpec(
         register_a=PlanSubscriptionA,
@@ -610,6 +693,7 @@ TABLES = {
         table_name_b="plan_subscription",
         pk_a=("id",),
         pk_b=("id",),
+        conflict_b={"installments": _KEEP_INSTALLMENTS},
     ),
 }
 

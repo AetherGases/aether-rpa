@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -30,6 +31,10 @@ from src.definition import (
     PlanSubscriptionTableA,
     PlanSubscriptionTableB,
     TransformError,
+    UnitA,
+    UnitB,
+    UnitTableA,
+    UnitTableB,
 )
 from src.transformer import transform, transform_to_a, transform_to_b
 from tests.fake_db import fake_connection
@@ -319,12 +324,38 @@ def test_transform_to_a_addresses_converts_number_int_to_str() -> None:
     )
 
 
-def test_transform_to_b_addresses_raises_for_non_numeric_number() -> None:
-    bad_row = (*ADDRESS_ROW_A[:6], "abc", *ADDRESS_ROW_A[7:])
-    connection, _cursor = fake_connection(ADDRESS_COLUMNS_A, [bad_row])
+@pytest.mark.parametrize(
+    ("number_a", "number_b"),
+    [
+        ("S/N", 0),
+        ("s/n", 0),
+        ("10A", 10),
+        ("100-B", 100),
+        ("Km 12", 12),
+        ("0042", 42),
+        ("123456789", 123456789),
+        ("1234567890", 0),
+    ],
+)
+def test_transform_to_b_addresses_normalizes_free_text_number(
+    number_a: str, number_b: int
+) -> None:
+    row = (*ADDRESS_ROW_A[:6], number_a, *ADDRESS_ROW_A[7:])
+    connection, _cursor = fake_connection(ADDRESS_COLUMNS_A, [row])
 
-    with pytest.raises(TransformError, match="not numeric"):
+    result = transform_to_b(connection, "addresses")
+
+    assert result.registers[0].number == number_b
+
+
+def test_transform_to_b_addresses_warns_when_number_has_no_digits(caplog) -> None:
+    row = (*ADDRESS_ROW_A[:6], "S/N", *ADDRESS_ROW_A[7:])
+    connection, _cursor = fake_connection(ADDRESS_COLUMNS_A, [row])
+
+    with caplog.at_level(logging.WARNING, logger="aether.rpa"):
         transform_to_b(connection, "addresses")
+
+    assert "address number 'S/N' has no usable digits" in caplog.text
 
 
 PERMISSION_GROUP_COLUMNS_A = [
@@ -589,3 +620,216 @@ def test_transform_to_b_addresses_raises_for_null_number() -> None:
     with pytest.raises(TransformError, match="address number cannot be null"):
         transform_to_b(connection, "addresses")
 
+
+
+UNIT_COLUMNS = [
+    "id",
+    "cnae",
+    "cnpj",
+    "is_active",
+    "created_at",
+    "updated_at",
+    "company_id",
+    "address_id",
+]
+UNIT_COLUMNS_B = [
+    "id",
+    "cnae",
+    "cnpj",
+    "is_active",
+    "created_at",
+    "updated_at",
+    "id_enterprise",
+    "id_address",
+]
+
+
+def _unit_row(cnae):
+    return (1, cnae, "12345678000199", True, CREATED_AT, None, 3, 4)
+
+
+@pytest.mark.parametrize(
+    ("cnae_a", "cnae_b"),
+    [
+        ("2399-1/01", "2399101"),
+        ("2399101", "2399101"),
+        (" 23.99-1/01 ", "2399101"),
+        ("2399-1", None),
+        ("23991012", None),
+        ("abc", None),
+        (None, None),
+    ],
+)
+def test_transform_to_b_units_keeps_only_a_seven_digit_cnae(cnae_a, cnae_b) -> None:
+    connection, _cursor = fake_connection(UNIT_COLUMNS, [_unit_row(cnae_a)])
+
+    result = transform_to_b(connection, "units")
+
+    assert result == UnitTableB(
+        registers=[
+            UnitB(
+                id=1,
+                cnae=cnae_b,
+                cnpj="12345678000199",
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+                id_enterprise=3,
+                id_address=4,
+            )
+        ]
+    )
+
+
+def test_transform_to_b_units_warns_about_an_invalid_cnae(caplog) -> None:
+    connection, _cursor = fake_connection(UNIT_COLUMNS, [_unit_row("2399-1")])
+
+    with caplog.at_level(logging.WARNING, logger="aether.rpa"):
+        transform_to_b(connection, "units")
+
+    assert "CNAE '2399-1' is not 7 digits; B gets NULL" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("cnae_b", "cnae_a"), [("2399101", "2399101"), ("239910 ", "239910"), (None, None)]
+)
+def test_transform_to_a_units_strips_the_char_padding(cnae_b, cnae_a) -> None:
+    connection, _cursor = fake_connection(UNIT_COLUMNS_B, [_unit_row(cnae_b)])
+
+    result = transform_to_a(connection, "units")
+
+    assert result == UnitTableA(
+        registers=[
+            UnitA(
+                id=1,
+                cnae=cnae_a,
+                cnpj="12345678000199",
+                is_active=True,
+                created_at=CREATED_AT,
+                updated_at=None,
+                company_id=3,
+                address_id=4,
+            )
+        ]
+    )
+
+
+LONG = "x" * 300
+
+
+def test_transform_to_b_truncates_company_name_and_warns(caplog) -> None:
+    row = (1, LONG, None, "12345678901234", CREATED_AT, None, 10)
+    connection, _cursor = fake_connection(COMPANY_COLUMNS_A, [row])
+
+    with caplog.at_level(logging.WARNING, logger="aether.rpa"):
+        result = transform_to_b(connection, "companies")
+
+    assert result.registers[0].name == "x" * 150
+    assert "companies.name of id 1 has 300 characters; B accepts 150" in caplog.text
+
+
+def test_transform_to_b_keeps_texts_that_fit() -> None:
+    row = (1, "x" * 150, None, "12345678901234", CREATED_AT, None, 10)
+    connection, _cursor = fake_connection(COMPANY_COLUMNS_A, [row])
+
+    assert transform_to_b(connection, "companies").registers[0].name == "x" * 150
+
+
+def test_transform_to_b_truncates_address_street() -> None:
+    row = (*ADDRESS_ROW_A[:5], LONG, *ADDRESS_ROW_A[6:])
+    connection, _cursor = fake_connection(ADDRESS_COLUMNS_A, [row])
+
+    assert transform_to_b(connection, "addresses").registers[0].street == "x" * 150
+
+
+def test_transform_to_b_truncates_permission_description() -> None:
+    row = (1, "read", LONG, "/r", CREATED_AT, None)
+    connection, _cursor = fake_connection(PERMISSION_COLUMNS_A, [row])
+
+    result = transform_to_b(connection, "permissions")
+
+    assert result.registers[0].description == "x" * 150
+
+
+def test_transform_to_b_truncates_plan_name_and_description() -> None:
+    columns = [
+        "id",
+        "name",
+        "description",
+        "price",
+        "duration_days",
+        "is_active",
+        "created_at",
+        "updated_at",
+    ]
+    row = (1, "n" * 100, LONG, 10, 30, True, CREATED_AT, None)
+    connection, _cursor = fake_connection(columns, [row])
+
+    result = transform_to_b(connection, "plans")
+
+    assert result.registers[0].name == "n" * 50
+    assert result.registers[0].description == "x" * 150
+
+
+def test_transform_to_b_truncates_sector_description() -> None:
+    columns = ["id", "name", "description", "created_at", "updated_at", "unit_id"]
+    row = (1, "Ops", LONG, CREATED_AT, None, 2)
+    connection, _cursor = fake_connection(columns, [row])
+
+    result = transform_to_b(connection, "sectors")
+
+    assert result.registers[0].description == "x" * 150
+    assert result.registers[0].id_unit == 2
+
+
+def test_transform_to_b_truncates_employee_name() -> None:
+    row = (*EMPLOYEE_ROW_A[:2], LONG, *EMPLOYEE_ROW_A[3:])
+    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_A, [row])
+
+    assert transform_to_b(connection, "employees").registers[0].name == "x" * 150
+
+
+def test_transform_to_a_never_truncates() -> None:
+    row = (1, LONG, None, "12345678901234", CREATED_AT, None, 10)
+    connection, _cursor = fake_connection(COMPANY_COLUMNS_B, [row])
+
+    assert transform_to_a(connection, "companies").registers[0].name == LONG
+
+
+def test_transform_to_a_employees_carries_company_and_unit_derived_in_b() -> None:
+    columns = [*EMPLOYEE_COLUMNS_B, "company_id", "unit_id"]
+    row = (*EMPLOYEE_ROW_A[:6], "ACTIVE", *EMPLOYEE_ROW_A[7:], 3, 4)
+    connection, _cursor = fake_connection(columns, [row])
+
+    result = transform_to_a(connection, "employees")
+
+    assert result.registers[0].company_id == 3
+    assert result.registers[0].unit_id == 4
+    assert result.registers[0].sector_id == 6
+
+
+def test_transform_to_b_employees_has_no_company_or_unit_to_write() -> None:
+    connection, _cursor = fake_connection(EMPLOYEE_COLUMNS_A, [EMPLOYEE_ROW_A])
+
+    result = transform_to_b(connection, "employees")
+
+    assert result.registers[0].company_id is None
+    assert result.registers[0].unit_id is None
+
+
+def test_transform_to_b_restricts_extraction_to_the_given_ids() -> None:
+    connection, cursor = fake_connection(COMPANY_COLUMNS_A, [COMPANY_ROW])
+
+    transform_to_b(connection, "companies", pks=[1, 2])
+
+    assert cursor.execute.call_args.args[0].endswith("FROM companies WHERE id = ANY(%s)")
+    assert cursor.execute.call_args.args[1] == ([1, 2],)
+
+
+def test_transform_to_a_restricts_extraction_to_the_given_ids() -> None:
+    connection, cursor = fake_connection(COMPANY_COLUMNS_B, [COMPANY_ROW])
+
+    transform_to_a(connection, "companies", pks=[5])
+
+    assert cursor.execute.call_args.args[0].endswith("FROM enterprise WHERE id = ANY(%s)")
+    assert cursor.execute.call_args.args[1] == ([5],)
