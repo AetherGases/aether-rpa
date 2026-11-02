@@ -66,6 +66,9 @@ def _drain(source, dest, drivers, order):
         return
     ids = []
     latest_write = {}
+    # Keys of the rows written per table; None when an outbox row carries no key
+    # (triggers from before row keys existed), which refreshes the whole table.
+    write_pks = {}
     deletes = {}
     for row_id, table_name, operation, row_pk in rows:
         ids.append(row_id)
@@ -73,12 +76,16 @@ def _drain(source, dest, drivers, order):
             deletes.setdefault(table_name, []).append(row_pk)
         else:
             latest_write[table_name] = operation
+            if row_pk is None or write_pks.get(table_name, []) is None:
+                write_pks[table_name] = None
+            else:
+                write_pks.setdefault(table_name, []).append(row_pk)
     for table_name in order:
         operation = latest_write.get(table_name)
         driver = drivers.get(table_name)
         if operation is None or driver is None:
             continue
-        driver(source, dest, operation)
+        driver(source, dest, operation, row_pks=write_pks[table_name])
     for table_name in reversed(order):
         payloads = deletes.get(table_name)
         driver = drivers.get(table_name)

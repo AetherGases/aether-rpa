@@ -6,3 +6,6 @@ Schema 2026-09: B SQL congelado; A SQL pode ganhar colunas do contrato RPA; perm
 Contrato RPA 2026-09-25: 11 tabelas; A SQL em new_first_year_database.sql com colunas do contrato e country nullable para B→A.
 Dockerfile: defaults POSTGRES_PORT/POSTGRES_SSLMODE; demais POSTGRES_* injetados no deploy (EKS).
 2026-10-31: A e B usam permissions.pattern (A: permissions, B: permission); field_map vazio.
+2026-11-02: driver faz um UPSERT por linha em SAVEPOINT (insert e update são iguais): linha com erro de dado/integridade é logada e pulada, não derruba o dreno; depois avança a sequence do destino. Dreno copia só as linhas do outbox.row_pk ({"id": n}); row_pk nulo (triggers antigos) = tabela inteira.
+2026-11-02: A→B corta texto ao limite de B (TableSpec.truncate_b), CNAE vira 7 dígitos (senão NULL), número de endereço = 1º grupo de dígitos (senão 0), is_active=false do funcionário vira INACTIVE. B→A não sobrescreve o texto completo de A (TableSpec.conflict_a) e deriva employees.company_id/unit_id do departamento.
+Em aberto: is_active de empresas/permissões/setores/endereços não existe em B (precisa de coluna nova, decisão de schema); colunas só de A (size, email, currency, country, units.name) não vão para B.

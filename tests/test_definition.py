@@ -1,3 +1,4 @@
+from dataclasses import fields
 from datetime import datetime
 from decimal import Decimal
 
@@ -346,3 +347,77 @@ def test_prefixed_registers_hold_a_and_b_fields() -> None:
     assert TABLES["sectors"].register_b is DepartmentB
     assert TABLES["employees"].register_a is EmployeeA
     assert TABLES["subscriptions"].register_b is PlanSubscriptionB
+
+
+def test_employee_select_a_turns_is_active_false_into_inactive() -> None:
+    select_a = TABLES["employees"].select_a
+    assert (
+        "CASE WHEN is_active THEN status ELSE 'INACTIVE'::status_employee END AS status"
+        in select_a
+    )
+
+
+def test_employee_select_b_derives_company_and_unit_from_department() -> None:
+    spec = TABLES["employees"]
+    assert "u.id_enterprise AS company_id" in spec.select_b
+    assert "d.id_unit AS unit_id" in spec.select_b
+    assert "LEFT JOIN department d ON d.id = e.id_department" in spec.select_b
+    assert "LEFT JOIN unit u ON u.id = d.id_unit" in spec.select_b
+    assert spec.filter_b == "e.id"
+    assert spec.filter_a == "id"
+
+
+def test_every_other_table_filters_by_its_primary_key() -> None:
+    for key, spec in TABLES.items():
+        if key != "employees":
+            assert (spec.filter_a, spec.filter_b) == ("id", "id")
+
+
+def test_truncate_limits_match_the_narrower_columns_of_b() -> None:
+    assert TABLES["addresses"].truncate_b == {"street": 150}
+    assert TABLES["permissions"].truncate_b == {"description": 150}
+    assert TABLES["plans"].truncate_b == {"name": 50, "description": 150}
+    assert TABLES["companies"].truncate_b == {"name": 150}
+    assert TABLES["sectors"].truncate_b == {"description": 150}
+    assert TABLES["employees"].truncate_b == {"name": 150}
+    assert TABLES["units"].truncate_b == {}
+
+
+def test_a_keeps_what_b_only_has_in_reduced_form() -> None:
+    assert set(TABLES["addresses"].conflict_a) == {"street", "number"}
+    assert set(TABLES["employees"].conflict_a) == {"name", "company_id", "unit_id"}
+    assert set(TABLES["units"].conflict_a) == {"cnae"}
+    assert set(TABLES["plans"].conflict_a) == {"name", "description"}
+    assert TABLES["companies"].conflict_a == {
+        "name": (
+            "CASE WHEN left(companies.name, 150) = EXCLUDED.name "
+            "THEN companies.name ELSE EXCLUDED.name END"
+        )
+    }
+    assert TABLES["units"].conflict_b == {}
+
+
+def test_b_keeps_its_installments_when_a_only_says_true() -> None:
+    assert set(TABLES["subscriptions"].conflict_b) == {"installments"}
+    assert TABLES["subscriptions"].conflict_a == {}
+
+
+def test_derived_employee_fields_default_to_none_and_are_flagged() -> None:
+    employee_a = EmployeeA(
+        id=1,
+        cpf="1",
+        name="Ana",
+        email="a@x",
+        phone="1",
+        password_hash="h",
+        status=StatusEmployee.ACTIVE,
+        created_at=CREATED_AT,
+        updated_at=None,
+        storage_file_id=None,
+        sector_id=None,
+        permission_group_id=None,
+    )
+    assert (employee_a.company_id, employee_a.unit_id) == (None, None)
+    derived = {f.name for f in fields(EmployeeB) if f.metadata.get("derived")}
+    assert derived == {"company_id", "unit_id"}
+    assert not any(f.metadata.get("derived") for f in fields(EmployeeA))

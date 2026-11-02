@@ -103,8 +103,8 @@ def test_drain_insert_update_last_operation_wins(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.orchestrator.TABLE_DRIVERS",
         {
-            "addresses": lambda a, b, op: calls.append(("addresses", op)),
-            "companies": lambda a, b, op: calls.append(("companies", op)),
+            "addresses": lambda a, b, op, row_pks=None: calls.append(("addresses", op)),
+            "companies": lambda a, b, op, row_pks=None: calls.append(("companies", op)),
         },
     )
     monkeypatch.setattr(
@@ -239,8 +239,12 @@ def test_drain_b_to_a_last_write_wins_and_marks_source_b(monkeypatch) -> None:
     monkeypatch.setattr(
         "src.orchestrator.TABLE_DRIVERS_TO_A",
         {
-            "address": lambda source, dest, op: calls.append(("address", op)),
-            "enterprise": lambda source, dest, op: calls.append(("enterprise", op)),
+            "address": lambda source, dest, op, row_pks=None: calls.append(
+                ("address", op)
+            ),
+            "enterprise": lambda source, dest, op, row_pks=None: calls.append(
+                ("enterprise", op)
+            ),
         },
     )
     monkeypatch.setattr(
@@ -419,3 +423,99 @@ def test_listen_loop_skips_on_notify_when_wait_is_false() -> None:
     )
 
     assert ticks["n"] == 3
+
+
+def _write_calls(pending, monkeypatch, drain_fn, drivers_name, order_name):
+    source, cursor = fake_connection(
+        ["id", "table_name", "operation", "row_pk"], pending
+    )
+    dest, _ = fake_connection([], [])
+    calls = []
+    monkeypatch.setattr(
+        f"src.orchestrator.{drivers_name}",
+        {
+            "companies": lambda a, b, op, row_pks=None: calls.append(
+                (op, row_pks)
+            ),
+        },
+    )
+    monkeypatch.setattr(f"src.orchestrator.{order_name}", ["companies"])
+    drain_fn(source, dest)
+    return calls, cursor
+
+
+def test_drain_passes_the_keys_of_written_rows(monkeypatch) -> None:
+    calls, cursor = _write_calls(
+        [
+            (1, "companies", "insert", {"id": 4}),
+            (2, "companies", "update", {"id": 7}),
+            (3, "companies", "update", {"id": 4}),
+        ],
+        monkeypatch,
+        drain,
+        "TABLE_DRIVERS",
+        "TABLE_ORDER",
+    )
+
+    assert calls == [("update", [{"id": 4}, {"id": 7}, {"id": 4}])]
+    assert cursor.execute.call_args_list[-1].args == (MARK_PROCESSED, ([1, 2, 3],))
+
+
+def test_drain_without_row_keys_refreshes_the_whole_table(monkeypatch) -> None:
+    calls, _cursor = _write_calls(
+        [(1, "companies", "insert", None)],
+        monkeypatch,
+        drain,
+        "TABLE_DRIVERS",
+        "TABLE_ORDER",
+    )
+
+    assert calls == [("insert", None)]
+
+
+def test_drain_one_keyless_row_makes_the_whole_table_refresh(monkeypatch) -> None:
+    keyless_first, _ = _write_calls(
+        [(1, "companies", "insert", None), (2, "companies", "update", {"id": 3})],
+        monkeypatch,
+        drain,
+        "TABLE_DRIVERS",
+        "TABLE_ORDER",
+    )
+    keyless_last, _ = _write_calls(
+        [(1, "companies", "insert", {"id": 3}), (2, "companies", "update", None)],
+        monkeypatch,
+        drain,
+        "TABLE_DRIVERS",
+        "TABLE_ORDER",
+    )
+
+    assert keyless_first == [("update", None)]
+    assert keyless_last == [("update", None)]
+
+
+def test_drain_b_to_a_passes_the_keys_of_written_rows(monkeypatch) -> None:
+    calls, cursor = _write_calls(
+        [(1, "companies", "insert", {"id": 4}), (2, "companies", "update", {"id": 7})],
+        monkeypatch,
+        drain_b_to_a,
+        "TABLE_DRIVERS_TO_A",
+        "TABLE_ORDER_B",
+    )
+
+    assert calls == [("update", [{"id": 4}, {"id": 7}])]
+    assert cursor.execute.call_args_list[-1].args == (MARK_PROCESSED, ([1, 2],))
+
+
+def test_insert_and_update_in_one_batch_still_reach_the_driver_as_a_write(
+    monkeypatch,
+) -> None:
+    calls, _cursor = _write_calls(
+        [(1, "companies", "insert", {"id": 1}), (2, "companies", "update", {"id": 2})],
+        monkeypatch,
+        drain,
+        "TABLE_DRIVERS",
+        "TABLE_ORDER",
+    )
+
+    # "update" is an upsert in the driver, so the new row (id 1) is not lost.
+    assert calls == [("update", [{"id": 1}, {"id": 2}])]

@@ -266,3 +266,43 @@ def test_extract_from_a_executes_select_a_for_every_table(table_key: str) -> Non
 
     cursor.execute.assert_called_once_with(spec.select_a)
     assert table == spec.table_a(registers=[])
+
+
+def test_extract_passes_params_to_the_query() -> None:
+    connection, cursor = fake_connection(["id", "name"], [(1, "alpha")])
+
+    extract(connection, QUERY, _Register, _Table, params=([1],))
+
+    cursor.execute.assert_called_once_with(QUERY, ([1],))
+
+
+def test_extract_from_a_restricts_to_the_given_ids() -> None:
+    connection, cursor = fake_connection(ADDRESS_COLUMNS, [ADDRESS_ROW_A])
+
+    table = extract_from_a(connection, "addresses", pks=[1, 2])
+
+    cursor.execute.assert_called_once_with(
+        TABLES["addresses"].select_a + " WHERE id = ANY(%s)", ([1, 2],)
+    )
+    assert table == AddressTableA(registers=[ADDRESS_A])
+
+
+def test_extract_from_b_restricts_with_the_spec_filter_column() -> None:
+    connection, cursor = fake_connection(EMPLOYEE_COLUMNS_B, [EMPLOYEE_ROW_B])
+
+    extract_from_b(connection, "employees", pks=[1])
+
+    cursor.execute.assert_called_once_with(
+        TABLES["employees"].select_b + " WHERE e.id = ANY(%s)", ([1],)
+    )
+
+
+def test_extract_from_b_employees_reads_company_and_unit_from_the_department() -> None:
+    connection, _cursor = fake_connection(
+        [*EMPLOYEE_COLUMNS_B, "company_id", "unit_id"],
+        [(*EMPLOYEE_ROW_B, 3, 4)],
+    )
+
+    register = extract_from_b(connection, "employees").registers[0]
+
+    assert (register.company_id, register.unit_id) == (3, 4)

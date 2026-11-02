@@ -3,9 +3,12 @@ from enum import Enum
 from src.definition import TABLES
 
 
-def extract(connection, query, register_cls, table_cls):
+def extract(connection, query, register_cls, table_cls, params=None):
     cursor = connection.cursor()
-    cursor.execute(query)
+    if params is None:
+        cursor.execute(query)
+    else:
+        cursor.execute(query, params)
     rows = cursor.fetchall()
     registers = [
         register_cls(
@@ -16,16 +19,25 @@ def extract(connection, query, register_cls, table_cls):
     return table_cls(registers=registers)
 
 
-def extract_from_a(connection, table_key):
+def _restrict(select, column, pks):
+    """Limit a select to the given primary keys; None keeps the whole table."""
+    if pks is None:
+        return select, None
+    return f"{select} WHERE {column} = ANY(%s)", (list(pks),)
+
+
+def extract_from_a(connection, table_key, pks=None):
     spec = TABLES[table_key]
-    table = extract(connection, spec.select_a, spec.register_a, spec.table_a)
+    query, params = _restrict(spec.select_a, spec.filter_a, pks)
+    table = extract(connection, query, spec.register_a, spec.table_a, params)
     _coerce_enums(table, spec.enum_coercions_a)
     return table
 
 
-def extract_from_b(connection, table_key):
+def extract_from_b(connection, table_key, pks=None):
     spec = TABLES[table_key]
-    table = extract(connection, spec.select_b, spec.register_b, spec.table_b)
+    query, params = _restrict(spec.select_b, spec.filter_b, pks)
+    table = extract(connection, query, spec.register_b, spec.table_b, params)
     _coerce_enums(table, spec.enum_coercions_b)
     return table
 
